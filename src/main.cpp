@@ -2,27 +2,41 @@
 #include <orbis/SystemService.h>
 #include <orbis/libkernel.h>
 #include <stdio.h>
+#include <vector>
+#include <fstream>
+#include <string>
 #include "assert.h"
 #include "logging.h"
 #include "types.h"
 
-// https://github.com/kalaposfos13/eboot-hooks-prx
-int hookable_function(int a) {
-    return 0;
-}
-
-int main(void) {
-
+int main(int argc, char** argv) {
     LOG_INFO("Starting homebrew");
 
-    sceKernelLoadStartModule("/app0/hook_example.prx", 0, 0, 0, 0, 0);
-
-    if (hookable_function(42) != 13) {
-        LOG_ERROR("Hooking failed");
-    } else {
-        LOG_INFO("Hooking succeeded");
+    if (argc > 1) {
+        LOG_INFO("This is the one in /data/homebrew, exiting. (we got {} arguments)", argc);
+        sceSystemServiceLoadExec("EXIT", nullptr);
     }
 
-    sceSystemServiceLoadExec("EXIT", nullptr);
+    std::vector<std::string> args{};
+    std::ifstream args_file("/data/homebrew/args.txt");
+    std::string line;
+    while(std::getline(args_file, line)) {
+        args.push_back(line);
+    }
+
+    char** const final_argv = new char*[args.size() + 1];
+    for (int i = 0; i < args.size(); ++i) {
+        final_argv[i] = new char[args[i].size() + 1];
+        strncpy(final_argv[i], args[i].c_str(), args[i].size() + 1);
+    }
+    final_argv[args.size()] = new char[1];
+    final_argv[args.size()][0] = '\0';
+
+    LOG_INFO("Starting eboot with arguments:");
+    for (int i = 0; i < args.size(); ++i) {
+        LOG_INFO("Arg {:02}: '{}'", i, final_argv[i]);
+    }
+
+    sceSystemServiceLoadExec("/data/homebrew/eboot.bin", (const char**)final_argv);
     return 0;
 }
