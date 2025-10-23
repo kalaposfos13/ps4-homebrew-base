@@ -29,14 +29,14 @@ int main(int argc, char** argv) {
         final_argv[i] = new char[args[i].size() + 1];
         strncpy(final_argv[i], args[i].c_str(), args[i].size() + 1);
     }
-    final_argv[args.size()] = new char[1];
-    final_argv[args.size()][0] = '\0';
+    final_argv[args.size()] = nullptr;
 
     LOG_INFO("Starting eboot with arguments:");
     for (int i = 0; i < args.size(); ++i) {
         LOG_INFO("Arg {:02}: '{}'", i, final_argv[i]);
     }
 
+    LOG_INFO("Executing LoadExec...");
     sceSystemServiceLoadExec("/data/homebrew/eboot.bin", (const char**)final_argv);
     return 0;
 }
