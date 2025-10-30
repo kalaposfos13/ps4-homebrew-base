@@ -1,8 +1,8 @@
 # Package metadata.
-TITLE       := homebrew example project
+TITLE       := Uptime printer
 VERSION     := 0.01
-TITLE_ID    := KALA00001
-CONTENT_ID  := IV0000-KALA00001_00-TESTSUITE0000000
+TITLE_ID    := KALA00008
+CONTENT_ID  := IV0000-KALA00008_00-UPTIME0000000000
 
 # Libraries linked into the ELF.
 LIBS        := -lc -lkernel -lc++ -lSceSysUtil -lSceSystemService
