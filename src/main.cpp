@@ -155,15 +155,13 @@ void play_video_file(char const* path) {
         if (sceAvPlayerGetAudioData(av_player_handle, &audio_data)) {
             LOG_INFO("audio size: {}, freq: {}", audio_data.details.audio.size,
                      audio_data.details.audio.sample_rate);
-            u16 sbuf[2048]{0};
-            for (int segment = 0; segment < 1; segment++) {
-                auto* vsbuf = reinterpret_cast<u16*>(audio_data.p_data + segment * 2048 * 2);
-                for (int i = 0; i < 2048; i++) {
-                    sbuf[i] = vsbuf[u64(
-                        (float)(i) * (float)((audio_data.details.audio.sample_rate / 48000.0f)))];
-                }
-                sceAudioOutOutput(audio_out_handle, sbuf);
+            u16 sbuf[2048];
+            auto* vsbuf = reinterpret_cast<u16*>(audio_data.p_data);
+            for (int i = 0; i < 2048; i++) {
+                sbuf[i] = vsbuf[u64((float)(i) *
+                                    (float)((audio_data.details.audio.sample_rate / 48000.0f)))];
             }
+            sceAudioOutOutput(audio_out_handle, sbuf);
             // sceAudioOutOutput(audio_out_handle, nullptr); // flush
         }
         if (!sceAvPlayerGetVideoData(av_player_handle, &frame)) {
@@ -183,11 +181,25 @@ void play_video_file(char const* path) {
             auto* dst =
                 reinterpret_cast<uint32_t*>(scene->frameBuffers[scene->activeFrameBufferIdx]);
 
-            for (int j = 0; j < frame.details.video.height; ++j) {
-                for (int i = 0; i < frame.details.video.width; ++i) {
-                    uint8_t luminance = src[j * frame.details.video.width + i];
-                    uint32_t color = 0xFF000000u | (luminance << 16) | (luminance << 8) | luminance;
-                    dst[j * scene->width + i] = color;
+            int w = frame.details.video.width;
+            int h = frame.details.video.height;
+            u32 y_size = w * h; // start of chroma planes
+
+            for (int y = 0; y < h; ++y) {
+                for (int x = 0; x < w; ++x) {
+                    u8 Y = src[y * w + x];
+
+                    // interleaved chroma (4:2:0)
+                    int uv_index = y_size + (y / 2) * w + (x & ~1);
+                    u8 U = src[uv_index + 0];
+                    u8 V = src[uv_index + 1];
+
+                    int r = static_cast<int>(Y + 1.4075 * (V - 128));
+                    int g = static_cast<int>(Y - 0.3455 * (U - 128) - 0.7169 * (V - 128));
+                    int b = static_cast<int>(Y + 1.7790 * (U - 128));
+
+                    uint32_t color = 0xFF000000u | (r << 16) | (g << 8) | b;
+                    dst[y * scene->width + x] = color;
                 }
             }
         }
