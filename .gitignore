@@ -6,3 +6,5 @@ param.sfo
 *.gp4
 .vscode
 output.txt
+*.mp4
+!video_short.mp4

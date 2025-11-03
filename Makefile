@@ -1,11 +1,12 @@
 # Package metadata.
-TITLE       := homebrew example project
+TITLE       := AvPlayer Example Homebrew
 VERSION     := 0.01
-TITLE_ID    := KALA00001
-CONTENT_ID  := IV0000-KALA00001_00-TESTSUITE0000000
+TITLE_ID    := KALA00009
+CONTENT_ID  := IV0000-KALA00009_00-AVPLAYER00000000
 
 # Libraries linked into the ELF.
-LIBS        := -lc -lkernel -lc++ -lSceSysUtil -lSceSystemService
+LIBS        := -lc -lkernel -lc++ -lSceSysUtil -lSceSystemService -lSceAvPlayer \
+			   	-lSceVideoOut -lSceSysmodule -lScePad -lSceUserService -lSceAudioOut
 
 # Additional compile flags.
 #EXTRAFLAGS  := 
@@ -25,7 +26,8 @@ CFILES      := $(shell find src -name "*.c")
 CPPFILES    := $(shell find src -name "*.cpp")
 OBJS        := $(patsubst %.cpp,$(INTDIR)/%.o, $(CPPFILES)) $(patsubst %.c,$(INTDIR)/%.o,$(CFILES))
 # Define final C/C++ flags
-CFLAGS      := --target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -c $(EXTRAFLAGS) -isysroot $(TOOLCHAIN) -isystem $(TOOLCHAIN)/include -Isrc
+CFLAGS      := --target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -O3 -march=btver2 -mtune=generic -mno-sse4a \
+				-c $(EXTRAFLAGS) -isysroot $(TOOLCHAIN) -isystem $(TOOLCHAIN)/include -Isrc 
 CXXFLAGS    := $(CFLAGS) -isystem $(TOOLCHAIN)/include/c++/v1 -fexceptions -fcxx-exceptions
 LDFLAGS     := -m elf_x86_64 -pie --script $(TOOLCHAIN)/link.x --eh-frame-hdr -L$(TOOLCHAIN)/lib $(LIBS) $(TOOLCHAIN)/lib/crt1.o
 
@@ -61,12 +63,12 @@ sce_sys/param.sfo: Makefile
 	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core sfo_setentry $@ CATEGORY --type Utf8 --maxsize 4 --value 'gd'  
 	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core sfo_setentry $@ CONTENT_ID --type Utf8 --maxsize 48 --value '$(CONTENT_ID)'
 	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core sfo_setentry $@ DOWNLOAD_DATA_SIZE --type Integer --maxsize 4 --value 0 
-	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core sfo_setentry $@ SYSTEM_VER --type Integer --maxsize 4 --value 0  
+	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core sfo_setentry $@ SYSTEM_VER --type Integer --maxsize 4 --value 0x05050000
 	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core sfo_setentry $@ TITLE --type Utf8 --maxsize 128 --value '$(TITLE)'
 	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core sfo_setentry $@ TITLE_ID --type Utf8 --maxsize 12 --value '$(TITLE_ID)'
 	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core sfo_setentry $@ VERSION --type Utf8 --maxsize 8 --value '$(VERSION)'
 
-pkg.gp4: eboot.bin sce_sys/about/right.sprx sce_sys/param.sfo sce_sys/icon0.png $(LIBMODULES) $(ASSETS)
+pkg.gp4: eboot.bin sce_sys/about/right.sprx sce_sys/param.sfo sce_sys/icon0.png $(LIBMODULES) $(ASSETS) video_short.mp4
 	$(TOOLCHAIN)/bin/$(CDIR)/create-gp4 -out $@ --content-id=$(CONTENT_ID) --files "$^"
 
 eboot.bin: $(INTDIR) $(OBJS)
