@@ -159,7 +159,8 @@ void play_video_file(char const* path) {
             for (int segment = 0; segment < 1; segment++) {
                 auto* vsbuf = reinterpret_cast<u16*>(audio_data.p_data + segment * 2048 * 2);
                 for (int i = 0; i < 2048; i++) {
-                    sbuf[i] = vsbuf[u64((float)(i) * (float)((audio_data.details.audio.sample_rate / 48000.0f)))];
+                    sbuf[i] = vsbuf[u64(
+                        (float)(i) * (float)((audio_data.details.audio.sample_rate / 48000.0f)))];
                 }
                 sceAudioOutOutput(audio_out_handle, sbuf);
             }
@@ -178,20 +179,15 @@ void play_video_file(char const* path) {
             // LOG_INFO("sceAvPlayerGetVideoData succeeded (w: {}, h: {})",
             // frame.details.video.width,
             //          frame.details.video.height);
-            auto* src = reinterpret_cast<const uint32_t*>(frame.p_data);
+            auto* src = reinterpret_cast<const uint8_t*>(frame.p_data);
             auto* dst =
                 reinterpret_cast<uint32_t*>(scene->frameBuffers[scene->activeFrameBufferIdx]);
 
-            for (int j = 0; j < scene->height; ++j) {
-                for (int i = 0; i < scene->width; ++i) {
-                    uint32_t color = src[j * scene->width + i];
-                    int baseX = i * 4;
-                    int baseY = j * 4;
-
-                    for (int y = 0; y < 4; ++y) {
-                        uint32_t* row = dst + (baseY + y) * scene->width + baseX;
-                        row[0] = row[1] = row[2] = row[3] = color;
-                    }
+            for (int j = 0; j < frame.details.video.height; ++j) {
+                for (int i = 0; i < frame.details.video.width; ++i) {
+                    uint8_t luminance = src[j * frame.details.video.width + i];
+                    uint32_t color = 0xFF000000u | (luminance << 16) | (luminance << 8) | luminance;
+                    dst[j * scene->width + i] = color;
                 }
             }
         }
@@ -232,8 +228,9 @@ void init_libs() {
         init.default_language = "";
     }
     av_player_handle = sceAvPlayerInit(&init);
-    audio_out_handle =
-        sceAudioOutOpen(user_id, ORBIS_AUDIO_OUT_PORT_TYPE_MAIN, 0, /* saples to submit per call */ 2048, /* sample rate */ 48000, 0 /* S16_MONO */);
+    audio_out_handle = sceAudioOutOpen(user_id, ORBIS_AUDIO_OUT_PORT_TYPE_MAIN, 0,
+                                       /* saples to submit per call */ 2048,
+                                       /* sample rate */ 48000, 0 /* S16_MONO */);
 }
 
 int main(int argc, char** argv) {
