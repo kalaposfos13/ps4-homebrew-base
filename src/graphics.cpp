@@ -59,7 +59,7 @@ bool Scene2D::Init(size_t memSize, int numFrameBuffers) {
         return false;
     }
 
-    sceVideoOutSetFlipRate(this->video, 1);
+    sceVideoOutSetFlipRate(this->video, 0);
     return true;
 }
 

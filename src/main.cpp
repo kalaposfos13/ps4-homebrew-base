@@ -16,6 +16,7 @@
 #include "logging.h"
 
 #include <mutex>
+#include <thread>
 #include <unordered_map>
 #include "assert.h"
 
@@ -142,7 +143,24 @@ void play_video_file(char const* path) {
     }
 
     AvPlayerFrameInfo frame{};
-    AvPlayerFrameInfo audio_data{};
+    std::thread audio_thread = std::thread{[&]() {
+        AvPlayerFrameInfo audio_data{};
+        while (sceAvPlayerIsActive(av_player_handle)) {
+            if (sceAvPlayerGetAudioData(av_player_handle, &audio_data)) {
+                LOG_INFO("audio size: {}, freq: {}", audio_data.details.audio.size,
+                         audio_data.details.audio.sample_rate);
+                auto* vsbuf = reinterpret_cast<u16*>(audio_data.p_data);
+                u16 sbuf[2048];
+                for (int i = 0; i < 2048; i++) {
+                    sbuf[i] = vsbuf[u64(
+                        (float)i * (float)(48000.0f / (audio_data.details.audio.sample_rate)))];
+                }
+                sceAudioOutOutput(audio_out_handle, sbuf);
+                // sceAudioOutOutput(audio_out_handle, nullptr); // flush
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(33));
+        }
+    }};
     LOG_INFO("Entering draw loop...");
     while (sceAvPlayerIsActive(av_player_handle)) {
         scene->FrameBufferClear();
@@ -152,18 +170,6 @@ void play_video_file(char const* path) {
             sceSystemServiceLoadExec("EXIT", nullptr);
         }
         // LOG_INFO("frame");
-        if (sceAvPlayerGetAudioData(av_player_handle, &audio_data)) {
-            LOG_INFO("audio size: {}, freq: {}", audio_data.details.audio.size,
-                     audio_data.details.audio.sample_rate);
-            u16 sbuf[2048];
-            auto* vsbuf = reinterpret_cast<u16*>(audio_data.p_data);
-            for (int i = 0; i < 2048; i++) {
-                sbuf[i] = vsbuf[u64((float)(i) *
-                                    (float)((audio_data.details.audio.sample_rate / 48000.0f)))];
-            }
-            sceAudioOutOutput(audio_out_handle, sbuf);
-            // sceAudioOutOutput(audio_out_handle, nullptr); // flush
-        }
         if (!sceAvPlayerGetVideoData(av_player_handle, &frame)) {
             // LOG_INFO("sceAvPlayerGetVideoData failed"); // next frame not ready
             // Copy previous framebuffer to current one
@@ -172,7 +178,6 @@ void play_video_file(char const* path) {
             auto* prev =
                 reinterpret_cast<uint32_t*>(scene->frameBuffers[1 - scene->activeFrameBufferIdx]);
             std::memcpy(dst, prev, scene->width * scene->height * sizeof(uint32_t));
-
         } else {
             // LOG_INFO("sceAvPlayerGetVideoData succeeded (w: {}, h: {})",
             // frame.details.video.width,
@@ -181,25 +186,39 @@ void play_video_file(char const* path) {
             auto* dst =
                 reinterpret_cast<uint32_t*>(scene->frameBuffers[scene->activeFrameBufferIdx]);
 
-            int w = frame.details.video.width;
-            int h = frame.details.video.height;
-            u32 y_size = w * h; // start of chroma planes
+            const int w = frame.details.video.width;
+            const int h = frame.details.video.height;
+            const u32 y_size = w * h;
+
+            // fixed-point integer coefficients (scaled by 1024)
+            constexpr int cR_V = 1436; // 1.4075 * 1024
+            constexpr int cG_U = 352;  // 0.3455 * 1024
+            constexpr int cG_V = 735;  // 0.7169 * 1024
+            constexpr int cB_U = 1821; // 1.7790 * 1024
 
             for (int y = 0; y < h; ++y) {
+                const int y_offset = y * w;
+                const int uv_offset = y_size + (y / 2) * w;
+
                 for (int x = 0; x < w; ++x) {
-                    u8 Y = src[y * w + x];
+                    const int uv_index = uv_offset + (x & ~1);
 
-                    // interleaved chroma (4:2:0)
-                    int uv_index = y_size + (y / 2) * w + (x & ~1);
-                    u8 U = src[uv_index + 0];
-                    u8 V = src[uv_index + 1];
+                    // NV12 (swap U/V if NV21)
+                    const int U = src[uv_index + 0] - 128;
+                    const int V = src[uv_index + 1] - 128;
+                    const int Y = src[y_offset + x];
 
-                    int r = static_cast<int>(Y + 1.4075 * (V - 128));
-                    int g = static_cast<int>(Y - 0.3455 * (U - 128) - 0.7169 * (V - 128));
-                    int b = static_cast<int>(Y + 1.7790 * (U - 128));
+                    // fixed-point YUV → RGB
+                    int r = (Y << 10) + cR_V * V;
+                    int g = (Y << 10) - cG_U * U - cG_V * V;
+                    int b = (Y << 10) + cB_U * U;
 
-                    uint32_t color = 0xFF000000u | (r << 16) | (g << 8) | b;
-                    dst[y * scene->width + x] = color;
+                    // convert back to 8-bit and clamp
+                    r = std::clamp(r >> 10, 0, 255);
+                    g = std::clamp(g >> 10, 0, 255);
+                    b = std::clamp(b >> 10, 0, 255);
+
+                    dst[y_offset + x] = 0xFF000000u | (r << 16) | (g << 8) | b;
                 }
             }
         }
@@ -219,6 +238,7 @@ void play_video_file(char const* path) {
 
 void init_libs() {
     sceSysmoduleLoadModule(ORBIS_SYSMODULE_AV_PLAYER);
+    sceSysmoduleLoadModuleInternal(ORBIS_SYSMODULE_INTERNAL_AUDIOOUT);
     OrbisUserServiceInitializeParams param;
     param.priority = ORBIS_KERNEL_PRIO_FIFO_LOWEST;
     sceUserServiceInitialize(&param);
@@ -254,8 +274,8 @@ int main(int argc, char** argv) {
         play_video_file(argv[1]);
     } else if (sceKernelStat("/data/homebrew/video.mp4", &s) == 0) {
         play_video_file("/data/homebrew/video.mp4");
-        // } else if (sceKernelStat("/app0/video.mp4", &s) == 0) {
-        //     play_video_file("/app0/video.mp4");
+    } else if (sceKernelStat("/app0/video.mp4", &s) == 0) {
+        play_video_file("/app0/video.mp4");
     } else {
         play_video_file("/app0/video_short.mp4");
     }
