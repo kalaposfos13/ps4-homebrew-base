@@ -151,16 +151,7 @@ void play_video_file(char const* path) {
             if (sceAvPlayerGetAudioData(av_player_handle, &audio_data)) {
                 // LOG_INFO("audio size: {}, freq: {}", audio_data.details.audio.size,
                 //          audio_data.details.audio.sample_rate);
-                for (int segment = 0; segment < 1; segment++) {
-                    auto* vsbuf = reinterpret_cast<u16*>(audio_data.p_data + segment * 2048 * 1);
-                    u16 sbuf[2048];
-                    for (int i = 0; i < 2048; i++) {
-                        sbuf[i] = vsbuf[u64(
-                            (float)i * (float)((audio_data.details.audio.sample_rate)/48000.0f)) * 2];
-                    }
-                    sceAudioOutOutput(audio_out_handle, sbuf);
-                }
-                // sceAudioOutOutput(audio_out_handle, nullptr); // flush
+                sceAudioOutOutput(audio_out_handle, audio_data.p_data);
             }
             std::this_thread::sleep_for(std::chrono::milliseconds(16));
         }
@@ -267,9 +258,10 @@ void init_libs() {
         init.default_language = "";
     }
     av_player_handle = sceAvPlayerInit(&init);
-    audio_out_handle = sceAudioOutOpen(255, ORBIS_AUDIO_OUT_PORT_TYPE_MAIN, 0,
-                                       /* saples to submit per call */ 1024,
-                                       /* sample rate */ 48000, /* S16_MONO = 0, S16_STEREO = 2 */ 0);
+    audio_out_handle =
+        sceAudioOutOpen(255, ORBIS_AUDIO_OUT_PORT_TYPE_MAIN, 0,
+                        /* saples to submit per call */ 1024,
+                        /* sample rate */ 48000, /* S16_MONO = 0, S16_STEREO = 1 */ 1);
     if (audio_out_handle < 0) {
         LOG_ERROR("sceAudioOutOpen returned {:#x}", (u32)audio_out_handle);
     }
