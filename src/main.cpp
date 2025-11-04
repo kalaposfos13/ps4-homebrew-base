@@ -19,20 +19,16 @@
 int user_id, pad_handle, audio_out_handle;
 AvPlayerHandle av_player_handle;
 
-void render_video_frame(Scene2D* scene, AvPlayerFrameInfo const& frame) {
-    auto* src = reinterpret_cast<const uint8_t*>(frame.p_data);
-    auto* dst = reinterpret_cast<uint32_t*>(scene->frameBuffers[scene->activeFrameBufferIdx]);
+void render_video_frame(Scene2D* scene, const AvPlayerFrameInfo& frame) {
+    const uint8_t* src = reinterpret_cast<const uint8_t*>(frame.p_data);
+    uint32_t* dst = reinterpret_cast<uint32_t*>(scene->frameBuffers[scene->activeFrameBufferIdx]);
 
-    LOG_INFO("w: {}, h: {}", frame.details.video.width, frame.details.video.height);
-    // const int w = frame.details.video.width;
-    // const int h = frame.details.video.height;
-    // const u32 y_size = w * h;
-
-    // fixed-point integer coefficients (scaled by 1024)
-    constexpr int cR_V = 1436; // 1.4075 * 1024
-    constexpr int cG_U = 352;  // 0.3455 * 1024
-    constexpr int cG_V = 735;  // 0.7169 * 1024
-    constexpr int cB_U = 1821; // 1.7790 * 1024
+    // fixed-point BT.601 limited-range YUV → RGB (scaled by 1024)
+    constexpr int cY  = 1192; // 1.164 * 1024
+    constexpr int cR_V = 1634; // 1.596 * 1024
+    constexpr int cG_U = 400;  // 0.392 * 1024
+    constexpr int cG_V = 833;  // 0.813 * 1024
+    constexpr int cB_U = 2066; // 2.017 * 1024
 
     const int sw = frame.details.video.width;
     const int sh = frame.details.video.height;
@@ -53,13 +49,16 @@ void render_video_frame(Scene2D* scene, AvPlayerFrameInfo const& frame) {
             const int V = src[uv_index + 1] - 128;
             const int Y = src[y_offset + sx];
 
-            int r = (Y << 10) + cR_V * V;
-            int g = (Y << 10) - cG_U * U - cG_V * V;
-            int b = (Y << 10) + cB_U * U;
+            int yv = std::max(0, Y - 16);
 
-            r = std::clamp(r >> 10, 0, 255);
-            g = std::clamp(g >> 10, 0, 255);
-            b = std::clamp(b >> 10, 0, 255);
+            int r = (cY * yv + cR_V * V) >> 10;
+            int g = (cY * yv - cG_U * U - cG_V * V) >> 10;
+            int b = (cY * yv + cB_U * U) >> 10;
+
+            // clamp to 0–255
+            r = std::clamp(r, 0, 255);
+            g = std::clamp(g, 0, 255);
+            b = std::clamp(b, 0, 255);
 
             dst[y * dw + x] = 0xFF000000u | (r << 16) | (g << 8) | b;
         }
