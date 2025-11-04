@@ -87,7 +87,7 @@ void av_deallocate(void* handle, void* memory) {
 }
 
 void* av_allocate_texture(void* handle, u32 alignment, u32 size) {
-    LOG_INFO("called, size: {:#x}, alignment: {:#x}", size, alignment);
+    // LOG_INFO("called, size: {:#x}, alignment: {:#x}", size, alignment);
     u64 out = 0;
     const std::size_t mapped_size = AlignUp(static_cast<u64>(size), 16_KB);
     s32 ret = sceKernelMapFlexibleMemory(&out, mapped_size,
@@ -100,11 +100,12 @@ void* av_allocate_texture(void* handle, u32 alignment, u32 size) {
         std::lock_guard<std::mutex> lk(g_flexmap_mutex);
         g_flexmap[(void*)out] = mapped_size;
     }
+    LOG_DEBUG("Allocated {:#x} bytes of memory to {}", mapped_size, (void*)out);
     return (void*)out;
 }
 
 void av_deallocate_texture(void* handle, void* memory) {
-    LOG_INFO("called");
+    // LOG_INFO("called");
     if (!memory)
         return;
     std::size_t mapped_size = 0;
@@ -120,6 +121,7 @@ void av_deallocate_texture(void* handle, void* memory) {
         }
     }
     sceKernelReleaseFlexibleMemory(memory, mapped_size);
+    LOG_DEBUG("Released {:#x} bytes of memory from {}", mapped_size, memory);
     return;
 }
 
@@ -147,20 +149,24 @@ void play_video_file(char const* path) {
         AvPlayerFrameInfo audio_data{};
         while (sceAvPlayerIsActive(av_player_handle)) {
             if (sceAvPlayerGetAudioData(av_player_handle, &audio_data)) {
-                LOG_INFO("audio size: {}, freq: {}", audio_data.details.audio.size,
-                         audio_data.details.audio.sample_rate);
-                auto* vsbuf = reinterpret_cast<u16*>(audio_data.p_data);
-                u16 sbuf[2048];
-                for (int i = 0; i < 2048; i++) {
-                    sbuf[i] = vsbuf[u64(
-                        (float)i * (float)(48000.0f / (audio_data.details.audio.sample_rate)))];
+                // LOG_INFO("audio size: {}, freq: {}", audio_data.details.audio.size,
+                //          audio_data.details.audio.sample_rate);
+                for (int segment = 0; segment < 1; segment++) {
+                    auto* vsbuf = reinterpret_cast<u16*>(audio_data.p_data + segment * 2048 * 1);
+                    u16 sbuf[2048];
+                    for (int i = 0; i < 2048; i++) {
+                        sbuf[i] = vsbuf[u64(
+                            (float)i * (float)((audio_data.details.audio.sample_rate)/48000.0f)) * 2];
+                    }
+                    sceAudioOutOutput(audio_out_handle, sbuf);
                 }
-                sceAudioOutOutput(audio_out_handle, sbuf);
                 // sceAudioOutOutput(audio_out_handle, nullptr); // flush
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(33));
+            std::this_thread::sleep_for(std::chrono::milliseconds(16));
         }
+        LOG_INFO("Exited the audio loop.");
     }};
+    audio_thread.detach();
     LOG_INFO("Entering draw loop...");
     while (sceAvPlayerIsActive(av_player_handle)) {
         scene->FrameBufferClear();
@@ -231,9 +237,10 @@ void play_video_file(char const* path) {
         scene->FrameBufferSwap();
         frameID++;
     }
+    LOG_INFO("Exited the draw loop.");
 
-    sceAvPlayerClose(av_player_handle);
     sceAvPlayerStop(av_player_handle);
+    sceAvPlayerClose(av_player_handle);
 }
 
 void init_libs() {
@@ -260,9 +267,12 @@ void init_libs() {
         init.default_language = "";
     }
     av_player_handle = sceAvPlayerInit(&init);
-    audio_out_handle = sceAudioOutOpen(user_id, ORBIS_AUDIO_OUT_PORT_TYPE_MAIN, 0,
-                                       /* saples to submit per call */ 2048,
-                                       /* sample rate */ 48000, 0 /* S16_MONO */);
+    audio_out_handle = sceAudioOutOpen(255, ORBIS_AUDIO_OUT_PORT_TYPE_MAIN, 0,
+                                       /* saples to submit per call */ 1024,
+                                       /* sample rate */ 48000, /* S16_MONO = 0, S16_STEREO = 2 */ 0);
+    if (audio_out_handle < 0) {
+        LOG_ERROR("sceAudioOutOpen returned {:#x}", (u32)audio_out_handle);
+    }
 }
 
 int main(int argc, char** argv) {
