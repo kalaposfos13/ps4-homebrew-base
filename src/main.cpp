@@ -1,10 +1,8 @@
 #include <cstring>
-#include <sstream>
 #include <string>
+#include <vector>
 #include <fcntl.h>
-#include <stdio.h>
 #include "orbis/AudioOut.h"
-#include "orbis/Keyboard.h"
 #include "orbis/Pad.h"
 #include "orbis/SystemService.h"
 #include "orbis/UserService.h"
@@ -15,114 +13,57 @@
 
 #include "logging.h"
 
-#include <mutex>
 #include <thread>
-#include <unordered_map>
 #include "assert.h"
-
-enum MemoryProt : u32 {
-    NoAccess = 0,
-    CpuRead = 1,
-    CpuWrite = 2,
-    CpuReadWrite = 3,
-    CpuExec = 4,
-    GpuRead = 16,
-    GpuWrite = 32,
-    GpuReadWrite = 48,
-};
-template <typename T>
-[[nodiscard]] constexpr T AlignUp(T value, std::size_t size) {
-    static_assert(std::is_unsigned_v<T>, "T must be an unsigned value.");
-    auto mod{static_cast<T>(value % size)};
-    value -= mod;
-    return static_cast<T>(mod == T{0} ? value : value + size);
-}
 
 int user_id, pad_handle, audio_out_handle;
 AvPlayerHandle av_player_handle;
 
-// Dimensions
-#define FRAME_WIDTH 1920
-#define FRAME_HEIGHT 1080
-#define FRAME_DEPTH 4
+void render_video_frame(Scene2D* scene, AvPlayerFrameInfo const& frame) {
+    auto* src = reinterpret_cast<const uint8_t*>(frame.p_data);
+    auto* dst = reinterpret_cast<uint32_t*>(scene->frameBuffers[scene->activeFrameBufferIdx]);
 
-static std::unordered_map<void*, std::size_t> g_flexmap;
-static std::mutex g_flexmap_mutex;
+    LOG_INFO("w: {}, h: {}", frame.details.video.width, frame.details.video.height);
+    // const int w = frame.details.video.width;
+    // const int h = frame.details.video.height;
+    // const u32 y_size = w * h;
 
-void* av_allocate(void* handle, u32 alignment, u32 size) {
-    LOG_INFO("called, size: {:#x}, alignment: {:#x}", size, alignment);
-    u64 out = 0;
-    const std::size_t mapped_size = AlignUp(static_cast<u64>(size), 16_KB);
-    s32 ret = sceKernelMapFlexibleMemory(&out, mapped_size,
-                                         MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite, 0);
-    if (ret != 0) {
-        LOG_ERROR("sceKernelMapFlexibleMemory failed: {:#x}", ret);
-        return nullptr;
-    }
-    {
-        std::lock_guard<std::mutex> lk(g_flexmap_mutex);
-        g_flexmap[(void*)out] = mapped_size;
-    }
-    return (void*)out;
-}
+    // fixed-point integer coefficients (scaled by 1024)
+    constexpr int cR_V = 1436; // 1.4075 * 1024
+    constexpr int cG_U = 352;  // 0.3455 * 1024
+    constexpr int cG_V = 735;  // 0.7169 * 1024
+    constexpr int cB_U = 1821; // 1.7790 * 1024
 
-void av_deallocate(void* handle, void* memory) {
-    LOG_INFO("called");
-    if (!memory)
-        return;
-    std::size_t mapped_size = 0;
-    {
-        std::lock_guard<std::mutex> lk(g_flexmap_mutex);
-        auto it = g_flexmap.find(memory);
-        if (it != g_flexmap.end()) {
-            mapped_size = it->second;
-            g_flexmap.erase(it);
-        } else {
-            LOG_WARNING("av_deallocate: unknown pointer, falling back to 16_KB");
-            mapped_size = 16_KB;
+    const int sw = frame.details.video.width;
+    const int sh = frame.details.video.height;
+    const int dw = scene->width;
+    const int dh = scene->height;
+    const u32 y_size = sw * sh;
+
+    for (int y = 0; y < dh; ++y) {
+        const int sy = y * sh / dh;
+        const int y_offset = sy * sw;
+        const int uv_offset = y_size + (sy / 2) * sw;
+
+        for (int x = 0; x < dw; ++x) {
+            const int sx = x * sw / dw;
+            const int uv_index = uv_offset + (sx & ~1);
+
+            const int U = src[uv_index + 0] - 128;
+            const int V = src[uv_index + 1] - 128;
+            const int Y = src[y_offset + sx];
+
+            int r = (Y << 10) + cR_V * V;
+            int g = (Y << 10) - cG_U * U - cG_V * V;
+            int b = (Y << 10) + cB_U * U;
+
+            r = std::clamp(r >> 10, 0, 255);
+            g = std::clamp(g >> 10, 0, 255);
+            b = std::clamp(b >> 10, 0, 255);
+
+            dst[y * dw + x] = 0xFF000000u | (r << 16) | (g << 8) | b;
         }
     }
-    sceKernelReleaseFlexibleMemory(memory, mapped_size);
-    return;
-}
-
-void* av_allocate_texture(void* handle, u32 alignment, u32 size) {
-    // LOG_INFO("called, size: {:#x}, alignment: {:#x}", size, alignment);
-    u64 out = 0;
-    const std::size_t mapped_size = AlignUp(static_cast<u64>(size), 16_KB);
-    s32 ret = sceKernelMapFlexibleMemory(&out, mapped_size,
-                                         MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite, 0);
-    if (ret != 0) {
-        LOG_ERROR("sceKernelMapFlexibleMemory (texture) failed: {:#x}", ret);
-        return nullptr;
-    }
-    {
-        std::lock_guard<std::mutex> lk(g_flexmap_mutex);
-        g_flexmap[(void*)out] = mapped_size;
-    }
-    LOG_DEBUG("Allocated {:#x} bytes of memory to {}", mapped_size, (void*)out);
-    return (void*)out;
-}
-
-void av_deallocate_texture(void* handle, void* memory) {
-    // LOG_INFO("called");
-    if (!memory)
-        return;
-    std::size_t mapped_size = 0;
-    {
-        std::lock_guard<std::mutex> lk(g_flexmap_mutex);
-        auto it = g_flexmap.find(memory);
-        if (it != g_flexmap.end()) {
-            mapped_size = it->second;
-            g_flexmap.erase(it);
-        } else {
-            LOG_WARNING("av_deallocate_texture: unknown pointer, falling back to 16_KB");
-            mapped_size = 16_KB;
-        }
-    }
-    sceKernelReleaseFlexibleMemory(memory, mapped_size);
-    LOG_DEBUG("Released {:#x} bytes of memory from {}", mapped_size, memory);
-    return;
 }
 
 void play_video_file(char const* path) {
@@ -131,7 +72,7 @@ void play_video_file(char const* path) {
 
     LOG_INFO("Initializing renderer");
     int frameID = 0;
-    auto scene = new Scene2D(FRAME_WIDTH, FRAME_HEIGHT, FRAME_DEPTH);
+    auto scene = new Scene2D(1920, 1080, 4);
     ASSERT_MSG(scene->Init(0xC000000, 2), "Failed to initialize 2D scene");
 
     if (!av_player_handle) {
@@ -175,49 +116,13 @@ void play_video_file(char const* path) {
             auto* prev =
                 reinterpret_cast<uint32_t*>(scene->frameBuffers[1 - scene->activeFrameBufferIdx]);
             std::memcpy(dst, prev, scene->width * scene->height * sizeof(uint32_t));
+            // std::swap(scene->frameBuffers[scene->activeFrameBufferIdx], scene->frameBuffers[1 -
+            // scene->activeFrameBufferIdx]);
         } else {
             // LOG_INFO("sceAvPlayerGetVideoData succeeded (w: {}, h: {})",
             // frame.details.video.width,
             //          frame.details.video.height);
-            auto* src = reinterpret_cast<const uint8_t*>(frame.p_data);
-            auto* dst =
-                reinterpret_cast<uint32_t*>(scene->frameBuffers[scene->activeFrameBufferIdx]);
-
-            const int w = frame.details.video.width;
-            const int h = frame.details.video.height;
-            const u32 y_size = w * h;
-
-            // fixed-point integer coefficients (scaled by 1024)
-            constexpr int cR_V = 1436; // 1.4075 * 1024
-            constexpr int cG_U = 352;  // 0.3455 * 1024
-            constexpr int cG_V = 735;  // 0.7169 * 1024
-            constexpr int cB_U = 1821; // 1.7790 * 1024
-
-            for (int y = 0; y < h; ++y) {
-                const int y_offset = y * w;
-                const int uv_offset = y_size + (y / 2) * w;
-
-                for (int x = 0; x < w; ++x) {
-                    const int uv_index = uv_offset + (x & ~1);
-
-                    // NV12 (swap U/V if NV21)
-                    const int U = src[uv_index + 0] - 128;
-                    const int V = src[uv_index + 1] - 128;
-                    const int Y = src[y_offset + x];
-
-                    // fixed-point YUV → RGB
-                    int r = (Y << 10) + cR_V * V;
-                    int g = (Y << 10) - cG_U * U - cG_V * V;
-                    int b = (Y << 10) + cB_U * U;
-
-                    // convert back to 8-bit and clamp
-                    r = std::clamp(r >> 10, 0, 255);
-                    g = std::clamp(g >> 10, 0, 255);
-                    b = std::clamp(b >> 10, 0, 255);
-
-                    dst[y_offset + x] = 0xFF000000u | (r << 16) | (g << 8) | b;
-                }
-            }
+            render_video_frame(scene, frame);
         }
 
         // Submit the frame buffer
@@ -255,7 +160,6 @@ void init_libs() {
         init.base_priority = 700;
         init.num_output_video_framebuffers = 2;
         init.auto_start = true;
-        init.default_language = "";
     }
     av_player_handle = sceAvPlayerInit(&init);
     audio_out_handle =
@@ -272,14 +176,19 @@ int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
 
     OrbisKernelStat s;
-    if (argc > 1) {
+    std::vector<char const*> video_paths = {
+        "/data/homebrew/video.mp4",
+        "/app0/video.mp4",
+        "/app0/video_short.mp4",
+    };
+    if (argc > 1 && sceKernelStat(argv[1], &s) == 0) {
         play_video_file(argv[1]);
-    } else if (sceKernelStat("/data/homebrew/video.mp4", &s) == 0) {
-        play_video_file("/data/homebrew/video.mp4");
-    } else if (sceKernelStat("/app0/video.mp4", &s) == 0) {
-        play_video_file("/app0/video.mp4");
     } else {
-        play_video_file("/app0/video_short.mp4");
+        for (auto const& path : video_paths) {
+            if (sceKernelStat(path, &s) == 0) {
+                play_video_file(path);
+            }
+        }
     }
 
     sceSystemServiceLoadExec("EXIT", nullptr);

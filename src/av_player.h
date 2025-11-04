@@ -216,6 +216,11 @@ struct AvPlayerInitData {
     const char* default_language;
 };
 
+void* av_allocate(void* handle, u32 alignment, u32 size);
+void av_deallocate(void* handle, void* memory);
+void* av_allocate_texture(void* handle, u32 alignment, u32 size);
+void av_deallocate_texture(void* handle, void* memory);
+
 struct AvPlayerInitDataEx {
     size_t this_size;
     AvPlayerMemAllocator memory_replacement;

@@ -5,7 +5,7 @@ TITLE_ID    := KALA00009
 CONTENT_ID  := IV0000-KALA00009_00-AVPLAYER00000000
 
 # Libraries linked into the ELF.
-LIBS        := -lc -lkernel -lc++ -lSceSysUtil -lSceSystemService -lSceAvPlayer \
+LIBS        := -lc -lkernel -lc++ -lSceSystemService -lSceAvPlayer \
 			   	-lSceVideoOut -lSceSysmodule -lScePad -lSceUserService -lSceAudioOut
 
 # Additional compile flags.
