@@ -8,3 +8,4 @@ param.sfo
 output.txt
 *.mp4
 !video_short.mp4
+*.sprx
