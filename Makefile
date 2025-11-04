@@ -13,7 +13,7 @@ LIBS        := -lc -lkernel -lc++ -lSceSystemService -lSceAvPlayer \
 
 # Asset and module directories.
 ASSETS 		:= $(wildcard assets/**/*)
-LIBMODULES  := $(wildcard sce_module/*)
+LIBMODULES  := $(wildcard sce_module/*.prx)
 
 # Root vars
 TOOLCHAIN   := $(OO_PS4_TOOLCHAIN)
