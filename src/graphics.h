@@ -51,6 +51,8 @@ public:
     bool allocateVideoMem(size_t size, int alignment);
     void deallocateVideoMem();
 
+    Scene2D() = default;
+
     Scene2D(int w, int h, int pixelDepth);
     ~Scene2D();
 
@@ -69,7 +71,7 @@ public:
 
 #ifdef GRAPHICS_USES_FONT
     bool InitFont(FT_Face* face, const char* fontPath, int fontSize);
-    void DrawText(char const* txt, FT_Face face, int startX, int startY, Color bgColor,
+    void DrawText(char const* txt, FT_Face& face, int startX, int startY, Color bgColor,
                   Color fgColor);
     void DrawTextContainer(char* txt, FT_Face face, int startX, int startY, int maxW, int maxH,
                            Color bgColor, Color fgColor);

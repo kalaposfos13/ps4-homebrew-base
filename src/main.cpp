@@ -24,7 +24,7 @@ void render_video_frame(Scene2D* scene, const AvPlayerFrameInfo& frame) {
     uint32_t* dst = reinterpret_cast<uint32_t*>(scene->frameBuffers[scene->activeFrameBufferIdx]);
 
     // fixed-point BT.601 limited-range YUV → RGB (scaled by 1024)
-    constexpr int cY  = 1192; // 1.164 * 1024
+    constexpr int cY = 1192;   // 1.164 * 1024
     constexpr int cR_V = 1634; // 1.596 * 1024
     constexpr int cG_U = 400;  // 0.392 * 1024
     constexpr int cG_V = 833;  // 0.813 * 1024
@@ -73,6 +73,9 @@ void play_video_file(char const* path) {
     int frameID = 0;
     auto scene = new Scene2D(1920, 1080, 4);
     ASSERT_MSG(scene->Init(0xC000000, 2), "Failed to initialize 2D scene");
+    FT_Face font = nullptr;
+    ASSERT_MSG(scene->InitFont(&font, "/data/homebrew/assets/Monocraft.ttf", 20) && font != nullptr,
+               "Failed to init font");
 
     if (!av_player_handle) {
         LOG_ERROR("sceAvPlayerInit returned an error.");
@@ -100,7 +103,6 @@ void play_video_file(char const* path) {
     audio_thread.detach();
     LOG_INFO("Entering draw loop...");
     while (sceAvPlayerIsActive(av_player_handle)) {
-        scene->FrameBufferClear();
         OrbisPadData pdata;
         scePadReadState(pad_handle, &pdata);
         if ((pdata.buttons & OrbisPadButton::ORBIS_PAD_BUTTON_CIRCLE) != 0) {
@@ -123,6 +125,9 @@ void play_video_file(char const* path) {
             //          frame.details.video.height);
             render_video_frame(scene, frame);
         }
+
+        scene->DrawText("Hello World!\nNewline.\nThird line.", font, 50, 300, {0, 0, 0},
+                        {255, 255, 255});
 
         // Submit the frame buffer
         scene->SubmitFlip(frameID);

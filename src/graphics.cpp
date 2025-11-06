@@ -8,12 +8,13 @@
 #include "graphics.h"
 #include "logging.h"
 
-Scene2D::Scene2D(int w, int h, int pixelDepth)
-    : width(w), height(h), depth(pixelDepth),
-      frameBufferSize(static_cast<size_t>(w) * static_cast<size_t>(h) *
-                      static_cast<size_t>(pixelDepth)),
-      frameBuffers(nullptr), activeFrameBufferIdx(0), video(0), videoMem(nullptr), videoMemSP(0),
-      directMemOff(0), directMemAllocationSize(0) {}
+Scene2D::Scene2D(int w, int h, int pixelDepth) : Scene2D() {
+    width = w;
+    height = h;
+    depth = pixelDepth;
+    frameBufferSize =
+        static_cast<size_t>(w) * static_cast<size_t>(h) * static_cast<size_t>(pixelDepth);
+}
 
 bool Scene2D::Init(size_t memSize, int numFrameBuffers) {
     int rc;
@@ -36,9 +37,10 @@ bool Scene2D::Init(size_t memSize, int numFrameBuffers) {
     }
     // Initialize freetype
     rc = FT_Init_FreeType(&this->ftLib);
+    LOG_INFO("FT_Init_FreeType returned {:#x}", rc);
 
-    if (rc != 0) {
-        LOG_DEBUG("Failed to initialize freetype: {}", std::string(strerror(errno)));
+    if (rc < 0) {
+        LOG_DEBUG("Failed to initialize freetype: {} - ret: {}", std::string(strerror(errno)), rc);
         return false;
     }
 #endif
@@ -197,14 +199,16 @@ void Scene2D::FrameBufferClear() {
 
 #ifdef GRAPHICS_USES_FONT
 bool Scene2D::InitFont(FT_Face* face, const char* fontPath, int fontSize) {
-    int rc;
+    FT_Error rc;
 
     rc = FT_New_Face(this->ftLib, fontPath, 0, face);
+    LOG_INFO("FT_New_Face returned {:#x}", rc);
 
     if (rc < 0)
         return false;
 
     rc = FT_Set_Pixel_Sizes(*face, 0, fontSize);
+    LOG_INFO("FT_Set_Pixel_Sizes returned {:#x}", rc);
 
     if (rc < 0)
         return false;
@@ -218,7 +222,7 @@ void Scene2D::FrameBufferFill(Color color) {
 }
 
 void Scene2D::DrawPixel(int x, int y, Color color) {
-
+    // LOG_DEBUG("Drawing pixel {} {}", x, y);
     int pixel = (y * this->width) + x;
     uint32_t encodedColor = 0x80000000u | (color.r << 16) | (color.g << 8) | color.b;
     ((uint32_t*)this->frameBuffers[this->activeFrameBufferIdx])[pixel] = encodedColor;
@@ -236,7 +240,7 @@ void Scene2D::DrawRectangle(int x, int y, int w, int h, Color color) {
 }
 
 #ifdef GRAPHICS_USES_FONT
-void Scene2D::DrawText(char const* txt, FT_Face face, int startX, int startY, Color bgColor,
+void Scene2D::DrawText(char const* txt, FT_Face& face, int startX, int startY, Color bgColor,
                        Color fgColor) {
     int rc;
     int xOffset = 0;
@@ -267,7 +271,7 @@ void Scene2D::DrawText(char const* txt, FT_Face face, int startX, int startY, Co
         // character
         if (txt[n] == '\n') {
             xOffset = 0;
-            yOffset += slot->bitmap.width * 2;
+            yOffset += slot->bitmap.width * 4;
 
             continue;
         }
@@ -297,8 +301,9 @@ void Scene2D::DrawText(char const* txt, FT_Face face, int startX, int startY, Co
                     continue;
 
                 // If the pixel in the bitmap isn't blank, we'll draw it
-                if (pixel != 0x00)
+                if (pixel != 0x00) {
                     this->DrawPixel(x, y, finalColor);
+                }
             }
         }
 
