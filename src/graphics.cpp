@@ -37,10 +37,9 @@ bool Scene2D::Init(size_t memSize, int numFrameBuffers) {
     }
     // Initialize freetype
     rc = FT_Init_FreeType(&this->ftLib);
-    LOG_INFO("FT_Init_FreeType returned {:#x}", rc);
 
-    if (rc < 0) {
-        LOG_DEBUG("Failed to initialize freetype: {} - ret: {}", std::string(strerror(errno)), rc);
+    if (rc != 0) {
+        LOG_DEBUG("Failed to initialize freetype: {}", rc);
         return false;
     }
 #endif
