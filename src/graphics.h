@@ -3,6 +3,8 @@
 #include <orbis/libkernel.h>
 #include <stdint.h>
 
+#define GRAPHICS_USES_FONT 1
+
 #ifndef GRAPHICS_H
 #define GRAPHICS_H
 
@@ -67,7 +69,8 @@ public:
 
 #ifdef GRAPHICS_USES_FONT
     bool InitFont(FT_Face* face, const char* fontPath, int fontSize);
-    void DrawText(char* txt, FT_Face face, int startX, int startY, Color bgColor, Color fgColor);
+    void DrawText(char const* txt, FT_Face face, int startX, int startY, Color bgColor,
+                  Color fgColor);
     void DrawTextContainer(char* txt, FT_Face face, int startX, int startY, int maxW, int maxH,
                            Color bgColor, Color fgColor);
 #endif

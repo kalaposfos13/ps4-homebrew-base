@@ -34,7 +34,6 @@ bool Scene2D::Init(size_t memSize, int numFrameBuffers) {
         LOG_DEBUG("Failed to load freetype: {}", std::string(strerror(errno)));
         return false;
     }
-
     // Initialize freetype
     rc = FT_Init_FreeType(&this->ftLib);
 
@@ -237,7 +236,7 @@ void Scene2D::DrawRectangle(int x, int y, int w, int h, Color color) {
 }
 
 #ifdef GRAPHICS_USES_FONT
-void Scene2D::DrawText(char* txt, FT_Face face, int startX, int startY, Color bgColor,
+void Scene2D::DrawText(char const* txt, FT_Face face, int startX, int startY, Color bgColor,
                        Color fgColor) {
     int rc;
     int xOffset = 0;
