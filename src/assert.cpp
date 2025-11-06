@@ -1,13 +1,16 @@
 // SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <thread>
 #include "assert.h"
 #include "logging.h"
+#include "orbis/SystemService.h"
 
-#define Crash() __asm__ __volatile__("int $3")
+#define Crash() sceSystemServiceLoadExec("", nullptr)
 
 void assert_fail_impl() {
     std::fflush(stdout);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
     Crash();
 }
 
@@ -17,8 +20,7 @@ void assert_fail_impl() {
     throw std::runtime_error("Unreachable code");
 }
 
-extern "C"
-void __cxa_thread_atexit_impl() {
+extern "C" void __cxa_thread_atexit_impl() {
     // LOG_INFO("Atexit called");
 }
 
