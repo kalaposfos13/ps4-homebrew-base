@@ -125,9 +125,11 @@ void play_video_file(char const* path) {
             //          frame.details.video.height);
             render_video_frame(scene, frame);
         }
-
-        scene->DrawText("Hello World!\nNewline.\nThird line.", font, 50, 300, {0, 0, 0},
-                        {255, 255, 255});
+        char const* text = R"(We're no strangers to love
+You know the rules and so do I
+A full commitment's what I'm thinkin' of
+You wouldn't get this from any other guy)";
+        scene->DrawText(text, font, 50, 300, {255, 255, 255}, {255, 255, 255});
 
         // Submit the frame buffer
         scene->SubmitFlip(frameID);
