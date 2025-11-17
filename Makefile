@@ -2,7 +2,7 @@
 TITLE       := homebrew example project
 VERSION     := 0.01
 TITLE_ID    := KALA00001
-CONTENT_ID  := IV0000-KALA00001_00-TESTSUITE0000000
+CONTENT_ID  := IV0000-$(TITLE_ID)_00-HOMEBREW00000000
 
 # Libraries linked into the ELF.
 LIBS        := -lc -lkernel -lc++ -lSceSysUtil -lSceSystemService
@@ -12,7 +12,7 @@ LIBS        := -lc -lkernel -lc++ -lSceSysUtil -lSceSystemService
 
 # Asset and module directories.
 ASSETS 		:= $(wildcard assets/**/*)
-LIBMODULES  := $(wildcard sce_module/*)
+LIBMODULES  := $(wildcard sce_module/*.prx)
 
 # Root vars
 TOOLCHAIN   := $(OO_PS4_TOOLCHAIN)
@@ -51,7 +51,7 @@ endif
 all: $(CONTENT_ID).pkg
 
 $(CONTENT_ID).pkg: pkg.gp4
-	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core pkg_build $< .
+	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core pkg_build $< ./pkgs
 
 sce_sys/param.sfo: Makefile
 	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core sfo_new $@

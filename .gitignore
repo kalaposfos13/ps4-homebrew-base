@@ -6,3 +6,7 @@ param.sfo
 *.gp4
 .vscode
 output.txt
+*.mp4
+*.sprx
+oneshots
+pkgs
