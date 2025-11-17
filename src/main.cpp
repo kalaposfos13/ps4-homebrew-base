@@ -16,6 +16,8 @@
 #include <thread>
 #include "assert.h"
 
+// #define HEIGHT_CORRECTION 1
+
 int user_id, pad_handle, audio_out_handle;
 AvPlayerHandle av_player_handle;
 
@@ -31,10 +33,18 @@ void render_video_frame(Scene2D* scene, const AvPlayerFrameInfo& frame) {
     constexpr int cB_U = 2066; // 2.017 * 1024
 
     const int sw = frame.details.video.width;
+#ifdef HEIGHT_CORRECTION
+    const int sh = frame.details.video.height - 8;
+#else
     const int sh = frame.details.video.height;
+#endif
     const int dw = scene->width;
     const int dh = scene->height;
-    const u32 y_size = sw * sh;
+#ifdef HEIGHT_CORRECTION
+    const u32 y_size = sw * (sh + 8);
+#else
+    const u32 y_size = sw * (sh);
+#endif
 
     for (int y = 0; y < dh; ++y) {
         const int sy = y * sh / dh;
