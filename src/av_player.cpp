@@ -27,7 +27,7 @@ static std::mutex g_flexmap_mutex;
 
 void* av_allocate(void* handle, u32 alignment, u32 size) {
     LOG_INFO("called, size: {:#x}, alignment: {:#x}", size, alignment);
-    u64 out = 0;
+    void* out = 0;
     const std::size_t mapped_size = AlignUp(static_cast<u64>(size), 16_KB);
     s32 ret = sceKernelMapFlexibleMemory(&out, mapped_size,
                                          MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite, 0);
@@ -64,7 +64,7 @@ void av_deallocate(void* handle, void* memory) {
 
 void* av_allocate_texture(void* handle, u32 alignment, u32 size) {
     // LOG_INFO("called, size: {:#x}, alignment: {:#x}", size, alignment);
-    u64 out = 0;
+    void* out = 0;
     const std::size_t mapped_size = AlignUp(static_cast<u64>(size), 16_KB);
     s32 ret = sceKernelMapFlexibleMemory(&out, mapped_size,
                                          MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite, 0);

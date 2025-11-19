@@ -115,7 +115,7 @@ bool Scene2D::allocateVideoMem(size_t size, int alignment) {
     }
 
     // Map the direct memory
-    rc = sceKernelMapDirectMemory((uint64_t*)&this->videoMem, this->directMemAllocationSize, 0x33,
+    rc = sceKernelMapDirectMemory(&this->videoMem, this->directMemAllocationSize, 0x33,
                                   0, this->directMemOff, alignment);
 
     if (rc < 0) {
