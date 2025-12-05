@@ -7,5 +7,7 @@ param.sfo
 .vscode
 output.txt
 *.mp4
-!video_short.mp4
 *.sprx
+oneshots
+pkgs
+!./assets/videos/video_short.mp4
