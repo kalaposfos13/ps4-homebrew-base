@@ -2,7 +2,7 @@
 TITLE       := AvPlayer Example Homebrew
 VERSION     := 0.01
 TITLE_ID    := KALA00009
-CONTENT_ID  := IV0000-KALA00009_00-AVPLAYER00000000
+CONTENT_ID  := IV0000-$(TITLE_ID)_00-AVPLAYER00000000
 
 # Libraries linked into the ELF.
 LIBS        := -lc -lkernel -lc++ -lSceSystemService -lSceAvPlayer \
@@ -12,7 +12,7 @@ LIBS        := -lc -lkernel -lc++ -lSceSystemService -lSceAvPlayer \
 #EXTRAFLAGS  := 
 
 # Asset and module directories.
-ASSETS 		:= $(wildcard assets/**/*)
+ASSETS 		:= assets/videos/video_short.mp4
 LIBMODULES  := $(wildcard sce_module/*.prx)
 
 # Root vars
@@ -32,7 +32,7 @@ CXXFLAGS    := $(CFLAGS) -isystem $(TOOLCHAIN)/include/c++/v1 -fexceptions -fcxx
 LDFLAGS     := -m elf_x86_64 -pie --script $(TOOLCHAIN)/link.x --eh-frame-hdr -L$(TOOLCHAIN)/lib $(LIBS) $(TOOLCHAIN)/lib/crt1.o
 
 # Create the intermediate directory incase it doesn't already exist.
-_unused     := $(shell mkdir -p $(INTDIR))
+_unused     := $(shell mkdir -p $(INTDIR) pkgs)
 
 # Check for linux vs macOS and account for clang/ld path
 UNAME_S     := $(shell uname -s)
@@ -50,10 +50,10 @@ ifeq ($(UNAME_S),Darwin)
 		CDIR    := macos
 endif
 
-all: $(CONTENT_ID).pkg
+all: pkgs/$(CONTENT_ID).pkg
 
-$(CONTENT_ID).pkg: pkg.gp4
-	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core pkg_build $< .
+pkgs/$(CONTENT_ID).pkg: pkg.gp4
+	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core pkg_build $< ./pkgs
 
 sce_sys/param.sfo: Makefile
 	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core sfo_new $@
@@ -68,7 +68,7 @@ sce_sys/param.sfo: Makefile
 	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core sfo_setentry $@ TITLE_ID --type Utf8 --maxsize 12 --value '$(TITLE_ID)'
 	$(TOOLCHAIN)/bin/$(CDIR)/PkgTool.Core sfo_setentry $@ VERSION --type Utf8 --maxsize 8 --value '$(VERSION)'
 
-pkg.gp4: eboot.bin sce_sys/about/right.sprx sce_sys/param.sfo sce_sys/icon0.png $(LIBMODULES) $(ASSETS) video_short.mp4
+pkg.gp4: eboot.bin sce_sys/about/right.sprx sce_sys/param.sfo sce_sys/icon0.png $(LIBMODULES) $(ASSETS)
 	$(TOOLCHAIN)/bin/$(CDIR)/create-gp4 -out $@ --content-id=$(CONTENT_ID) --files "$^"
 
 eboot.bin: $(INTDIR) $(OBJS)

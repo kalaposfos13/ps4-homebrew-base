@@ -187,8 +187,8 @@ int main(int argc, char** argv) {
     OrbisKernelStat s;
     std::vector<char const*> video_paths = {
         "/data/homebrew/video.mp4",
-        "/app0/video.mp4",
-        "/app0/video_short.mp4",
+        "/app0/videos/video.mp4",
+        "/app0/videos/video_short.mp4",
     };
     if (argc > 1 && sceKernelStat(argv[1], &s) == 0) {
         play_video_file(argv[1]);
