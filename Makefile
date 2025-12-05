@@ -1,6 +1,6 @@
 # Package metadata.
 TITLE       := AvPlayer Example Homebrew
-VERSION     := 0.01
+VERSION     := 0.02
 TITLE_ID    := KALA00009
 CONTENT_ID  := IV0000-$(TITLE_ID)_00-AVPLAYER00000000
 
