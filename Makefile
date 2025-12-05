@@ -75,11 +75,11 @@ eboot.bin: $(INTDIR) $(OBJS)
 
 $(INTDIR)/%.o: %.cpp
 	mkdir -p $(dir $@)
-	clang++ $(CXXFLAGS) -c $< -o $@
+	$(CCX) $(CXXFLAGS) -c $< -o $@
 
 $(INTDIR)/%.o: %.c
 	mkdir -p $(dir $@)
-	clang $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
 	rm -f $(CONTENT_ID).pkg pkg.gp4 pkg/sce_sys/param.sfo eboot.bin \
