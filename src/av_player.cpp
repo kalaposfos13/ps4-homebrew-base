@@ -58,7 +58,7 @@ void av_deallocate(void* handle, void* memory) {
             mapped_size = 16_KB;
         }
     }
-    sceKernelReleaseFlexibleMemory(memory, mapped_size);
+    sceKernelMunmap(memory, mapped_size);
     return;
 }
 
@@ -96,7 +96,7 @@ void av_deallocate_texture(void* handle, void* memory) {
             mapped_size = 16_KB;
         }
     }
-    sceKernelReleaseFlexibleMemory(memory, mapped_size);
+    sceKernelMunmap(memory, mapped_size);
     LOG_DEBUG("Released {:#x} bytes of memory from {}", mapped_size, memory);
     return;
 }
