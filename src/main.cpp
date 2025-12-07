@@ -9,6 +9,7 @@
 #include "assert.h"
 #include "logging.h"
 #include "types.h"
+#include "signal_handler.h"
 
 #define MAP_VOID 0x100
 
@@ -16,9 +17,9 @@ extern "C" int sceKernelInstallExceptionHandler(s32 sig_num, void (*handler)(int
 extern "C" int sceKernelRemoveExceptionHandler(s32 sig_num);
 
 void swap_handler(int sig, void* raw_context) {
-    auto& mctx = ((ucontext_t*)raw_context)->uc_mcontext;
-    LOG_INFO("addr: {:#x}", (mctx.gregs[REG_TRAPNO]));
-    void* aligned_addr = (void*)((uintptr_t(mctx.gregs[REG_TRAPNO])) & ~0xfff);
+    auto& mctx = ((Orbis::Ucontext*)raw_context)->uc_mcontext;
+    LOG_INFO("addr: {:#x}", (mctx.mc_addr));
+    void* aligned_addr = (void*)((uintptr_t(mctx.mc_addr)) & ~0xfff);
     void* res =
         mmap(aligned_addr, 4096, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_ANON | MAP_PRIVATE, -1, 0);
     if (res == MAP_FAILED) {
