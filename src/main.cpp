@@ -10,29 +10,30 @@
 #include "logging.h"
 #include "types.h"
 
-
 #define MAP_VOID 0x100
 
-extern "C" int sceKernelInstallExceptionHandler(s32 sig_num, void (*handler_func)(int, void*));
+extern "C" int sceKernelInstallExceptionHandler(s32 sig_num, void (*handler)(int, void*));
+extern "C" int sceKernelRemoveExceptionHandler(s32 sig_num);
 
-struct sigaction old_sa_segv;
-void swap_handler(int sig, void *raw_context) {
+void swap_handler(int sig, void* raw_context) {
     auto& mctx = ((ucontext_t*)raw_context)->uc_mcontext;
-    LOG_INFO("si: {:#x}", (mctx.gregs[20]));
+    LOG_INFO("addr: {:#x}", (mctx.gregs[REG_TRAPNO]));
     void* aligned_addr = (void*)((uintptr_t(mctx.gregs[REG_TRAPNO])) & ~0xfff);
-    void* res = mmap(aligned_addr, 4096, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_ANON | MAP_PRIVATE, -1, 0);
-    LOG_INFO("res != MAP_FAILED = {}", res != MAP_FAILED);
+    void* res =
+        mmap(aligned_addr, 4096, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_ANON | MAP_PRIVATE, -1, 0);
+    if (res == MAP_FAILED) {
+        LOG_INFO("mmap returned {} {}", errno, strerror(errno));
+    }
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
     size_t len = 4096 * 4096;
-    void* addr = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_VOID | MAP_PRIVATE, -1, 0);
+    void* addr = mmap(nullptr, len, PROT_READ | PROT_WRITE, MAP_VOID | MAP_PRIVATE, -1, 0);
     ASSERT(addr != MAP_FAILED);
     LOG_INFO("base: {}\n", fmt::ptr(addr));
 
-    sceKernelInstallExceptionHandler(SIGSEGV, (void(*)(int, void*))&swap_handler);
+    sceKernelInstallExceptionHandler(SIGSEGV, &swap_handler);
 
-    printf("base: %p\n", addr);
     {
         uint8_t volatile* addr_u8 = (uint8_t volatile*)addr;
 
@@ -46,6 +47,10 @@ int main(int argc, char *argv[]) {
     }
 
     munmap(addr, len);
+
+    // optional
+    sceKernelRemoveExceptionHandler(SIGSEGV);
+
     LOG_INFO("Exiting");
     sceSystemServiceLoadExec("exit", nullptr);
     return EXIT_SUCCESS;
