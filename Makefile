@@ -1,7 +1,7 @@
 # Package metadata.
-TITLE       := homebrew example project
+TITLE       := Sigaction Test
 VERSION     := 0.01
-TITLE_ID    := KALA00001
+TITLE_ID    := KALA00012
 CONTENT_ID  := IV0000-$(TITLE_ID)_00-HOMEBREW00000000
 
 # Libraries linked into the ELF.
@@ -11,7 +11,7 @@ LIBS        := -lc -lkernel -lc++ -lSceSysUtil -lSceSystemService
 #EXTRAFLAGS  := 
 
 # Asset and module directories.
-ASSETS 		:= $(wildcard assets/**/*)
+ASSETS 		:= # $(wildcard assets/**/*)
 LIBMODULES  := $(wildcard sce_module/*.prx)
 
 # Root vars
@@ -25,7 +25,7 @@ CFILES      := $(shell find src -name "*.c")
 CPPFILES    := $(shell find src -name "*.cpp")
 OBJS        := $(patsubst %.cpp,$(INTDIR)/%.o, $(CPPFILES)) $(patsubst %.c,$(INTDIR)/%.o,$(CFILES))
 # Define final C/C++ flags
-CFLAGS      := --target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -c $(EXTRAFLAGS) -isysroot $(TOOLCHAIN) -isystem $(TOOLCHAIN)/include -Isrc
+CFLAGS      := --target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -c $(EXTRAFLAGS) -isysroot $(TOOLCHAIN) -isystem $(TOOLCHAIN)/include -Isrc -fstack-protector
 CXXFLAGS    := $(CFLAGS) -isystem $(TOOLCHAIN)/include/c++/v1 -fexceptions -fcxx-exceptions
 LDFLAGS     := -m elf_x86_64 -pie --script $(TOOLCHAIN)/link.x --eh-frame-hdr -L$(TOOLCHAIN)/lib $(LIBS) $(TOOLCHAIN)/lib/crt1.o
 
