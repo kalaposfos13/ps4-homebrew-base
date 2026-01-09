@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fmt/format.h"
+#include "orbis/libkernel.h"
 
 extern "C" void sceSysUtilSendSystemNotificationWithText(int type, const char* message);
 
