@@ -2,13 +2,13 @@
 #include <orbis/libkernel.h>
 // #include <orbis/Camera.h>
 #include <camera.h>
+#include <orbis/Pad.h>
 #include <orbis/Sysmodule.h>
 #include <orbis/UserService.h>
-#include <orbis/Pad.h>
 #include "assert.h"
+#include "graphics.h"
 #include "logging.h"
 #include "types.h"
-#include "graphics.h"
 
 s32 user_id, camera_handle, pad_handle, frame_id = 0;
 Scene2D* scene;
@@ -64,6 +64,7 @@ int main(void) {
     OrbisCameraStartParameter cstart_param{};
     cstart_param.size_this = sizeof(OrbisCameraStartParameter);
     cstart_param.format_level[0] = ORBIS_CAMERA_FRAME_FORMAT_LEVEL0;
+    cstart_param.format_level[1] = ORBIS_CAMERA_FRAME_FORMAT_LEVEL0;
     ASSERT(sceCameraStart(camera_handle, &cstart_param) == ORBIS_OK);
 
     OrbisCameraVideoSyncParameter cvsync_param{};
@@ -72,11 +73,21 @@ int main(void) {
     ASSERT(sceCameraSetVideoSync(camera_handle, &cvsync_param) == ORBIS_OK);
     LOG_INFO("PlayStation Camera set up and started.");
 
+    int eye = 0, sq_pressed = false;
+
     while (true) {
         OrbisPadData pdata;
         scePadReadState(pad_handle, &pdata);
         if ((pdata.buttons & OrbisPadButton::ORBIS_PAD_BUTTON_CIRCLE) != 0) {
             break;
+        }
+        if ((pdata.buttons & OrbisPadButton::ORBIS_PAD_BUTTON_SQUARE) != 0) {
+            if (!sq_pressed) {
+                eye = 1 - eye;
+                sq_pressed = true;
+            }
+        } else {
+            sq_pressed = false;
         }
         OrbisCameraFrameData frameData;
         frameData.size_this = (sizeof(OrbisCameraFrameData));
@@ -89,13 +100,14 @@ int main(void) {
             LOG_INFO("Invalid frame, most likely a me skill issue.");
             continue;
         }
-        // LOG_INFO("Got valid frame, ptr: {}", frameData.frame_ptr_list[0][0]);
-        // dump_frame_data(frameData);
+        // LOG_INFO("Got valid frame, ptr: {} {}", frameData.frame_ptr_list[0][0],
+        // frameData.frame_ptr_list[1][0]); dump_frame_data(frameData);
 
         scene->FrameBufferClear();
 
         // draw stuff
-        std::memcpy(scene->frameBuffers[scene->activeFrameBufferIdx], frameData.frame_ptr_list[0][0], 2000000);
+        std::memcpy(scene->frameBuffers[scene->activeFrameBufferIdx],
+                    frameData.frame_ptr_list[eye][0], 2000000);
 
         // Submit the frame buffer
         scene->SubmitFlip(frame_id);
