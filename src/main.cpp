@@ -17,6 +17,22 @@ void init_libs() {
     sceUserServiceGetInitialUser(&user_id);
 }
 
+void dump_frame_data(OrbisCameraFrameData const& d) {
+    LOG_INFO("Frame dump:");
+    fmt::println("size: {}", d.size_this);
+    for (int i = 0; i < ORBIS_CAMERA_MAX_DEVICE_NUM; i++) {
+        for (int j = 0; j < ORBIS_CAMERA_MAX_FORMAT_LEVEL_NUM; j++) {
+            auto const& fp = d.frame_position[i][j];
+            fmt::println("pos{}_{}: ({:#x} {:#x})", i, j, fp.x, fp.y);
+        }
+    }
+    for (int i = 0; i < ORBIS_CAMERA_MAX_DEVICE_NUM; i++) {
+        fmt::println("status_{}: {}", i, d.status[i]);
+    }
+    fmt::println("accel: {} {} {}", d.meta.acceleration.x, d.meta.acceleration.y,
+                 d.meta.acceleration.z);
+}
+
 int main(void) {
     init_libs();
 
@@ -40,7 +56,28 @@ int main(void) {
     cstart_param.size_this = sizeof(OrbisCameraStartParameter);
     cstart_param.format_level[0] = ORBIS_CAMERA_FRAME_FORMAT_LEVEL0;
     ASSERT(sceCameraStart(camera_handle, &cstart_param) == ORBIS_OK);
+
+    OrbisCameraVideoSyncParameter cvsync_param{};
+    cvsync_param.size_this = sizeof(OrbisCameraVideoSyncParameter);
+    cvsync_param.video_sync_mode = 1;
+    ASSERT(sceCameraSetVideoSync(camera_handle, &cvsync_param) == ORBIS_OK);
     LOG_INFO("PlayStation Camera set up and started.");
+
+    for (int i = 0; i < 100; i++) {
+        OrbisCameraFrameData frameData;
+        frameData.size_this = (sizeof(OrbisCameraFrameData));
+        frameData.read_mode = 0;
+        if (sceCameraGetFrameData(camera_handle, &frameData) != ORBIS_OK) {
+            LOG_INFO("Couldn't obtain frame data.");
+            continue;
+        }
+        if (sceCameraIsValidFrameData(camera_handle, &frameData) == 0) {
+            LOG_INFO("Invalid frame, most likely a me skill issue.");
+            continue;
+        }
+        // LOG_INFO("Got valid frame, ptr: {}", frameData.frame_ptr_list[0][0]);
+        // dump_frame_data(frameData);
+    }
 
     sceCameraStop(camera_handle);
     sceCameraClose(camera_handle);

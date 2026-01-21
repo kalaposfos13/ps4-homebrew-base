@@ -1,5 +1,5 @@
-#ifndef _SCE_CAMERA_H_
-#define _SCE_CAMERA_H_
+#ifndef _ORBIS_CAMERA_H_
+#define _ORBIS_CAMERA_H_
 
 #include <orbis/UserService.h>
 #include <stdint.h>
@@ -8,6 +8,16 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct OrbisFVector2 {
+    float x, y;
+} OrbisFVector2;
+typedef struct OrbisFVector3 {
+    float x, y, z;
+} OrbisFVector3;
+typedef struct OrbisFVector4 {
+    float x, y, z, w;
+} OrbisFVector4;
 
 typedef enum OrbisCameraBaseFormat {
     ORBIS_CAMERA_FORMAT_YUV422 = 0x0,
@@ -22,6 +32,28 @@ typedef enum OrbisCameraFrameFormatLevel {
     ORBIS_CAMERA_FRAME_FORMAT_LEVEL3 = 0x08,
     ORBIS_CAMERA_FRAME_FORMAT_LEVEL_ALL = 0x0F,
 } OrbisCameraFrameFormatLevel;
+
+typedef enum OrbisCameraFrameMemoryType {
+    ORBIS_CAMERA_FRAME_MEMORY_TYPE_ONION = 0x0000,
+    ORBIS_CAMERA_FRAME_MEMORY_TYPE_GARLIC = 0x0001,
+} OrbisCameraFrameMemoryType;
+
+typedef enum OrbisCameraFrameWaitNextFrameMode {
+    ORBIS_CAMERA_FRAME_WAIT_NEXTFRAME_ON_MODE_0 = 0x0000,
+    ORBIS_CAMERA_FRAME_WAIT_NEXTFRAME_OFF_MODE_0 = 0x0010,
+    ORBIS_CAMERA_FRAME_WAIT_NEXTFRAME_ON_MODE_1 = 0x0020,
+    ORBIS_CAMERA_FRAME_WAIT_NEXTFRAME_OFF_MODE_1 = 0x0030,
+} OrbisCameraFrameWaitNextFrameMode;
+
+typedef enum OrbisCameraStatus {
+    ORBIS_CAMERA_STATUS_IS_INVALID_META_DATA = -2,
+    ORBIS_CAMERA_STATUS_IS_INVALID_FRAME = -1,
+    ORBIS_CAMERA_STATUS_IS_NOT_ACTIVE = 0,
+    ORBIS_CAMERA_STATUS_IS_ACTIVE = 1,
+    ORBIS_CAMERA_STATUS_IS_ALREADY_READ = 2,
+    ORBIS_CAMERA_STATUS_IS_NOT_STABLE = 3,
+    ORBIS_CAMERA_STATUS_IS_SYNC_ADJUSTING = 4,
+} OrbisCameraStatus;
 
 typedef enum OrbisCameraScaleFormat {
     ORBIS_CAMERA_SCALE_FORMAT_YUV422 = 0x0,
@@ -76,6 +108,7 @@ typedef struct OrbisCameraConfigExtention {
 } OrbisCameraConfigExtention;
 
 #define ORBIS_CAMERA_MAX_DEVICE_NUM 2
+#define ORBIS_CAMERA_MAX_FORMAT_LEVEL_NUM 4
 
 typedef struct OrbisCameraConfig {
     u32 size_this;
@@ -89,6 +122,69 @@ typedef struct OrbisCameraStartParameter {
     u32 format_level[ORBIS_CAMERA_MAX_DEVICE_NUM];
     void* p_start_option;
 } OrbisCameraStartParameter;
+
+typedef struct OrbisCameraVideoSyncParameter {
+    u32 size_this;
+    u32 video_sync_mode;
+    void* p_mode_option;
+} OrbisCameraVideoSyncParameter;
+
+typedef struct OrbisCameraFramePosition {
+    u32 x;
+    u32 y;
+    u32 x_size;
+    u32 y_size;
+} OrbisCameraFramePosition;
+
+typedef struct OrbisCameraExposureGain {
+    u32 exposureControl;
+    u32 exposure;
+    u32 gain;
+    u32 mode;
+} OrbisCameraExposureGain;
+
+typedef struct OrbisCameraWhiteBalance {
+    u32 whiteBalanceControl;
+    u32 gainRed;
+    u32 gainBlue;
+    u32 gainGreen;
+} OrbisCameraWhiteBalance;
+
+typedef struct OrbisCameraGamma {
+    u32 gammaControl;
+    u32 value;
+    u8 reserved[16];
+} OrbisCameraGamma;
+
+typedef struct OrbisCameraMeta {
+    u32 metaMode;
+    u32 format[ORBIS_CAMERA_MAX_DEVICE_NUM][ORBIS_CAMERA_MAX_FORMAT_LEVEL_NUM];
+    u64 frame[ORBIS_CAMERA_MAX_DEVICE_NUM];
+    u64 timestamp[ORBIS_CAMERA_MAX_DEVICE_NUM];
+    u32 deviceTimestamp[ORBIS_CAMERA_MAX_DEVICE_NUM];
+    OrbisCameraExposureGain exposureGain[ORBIS_CAMERA_MAX_DEVICE_NUM];
+    OrbisCameraWhiteBalance whiteBalance[ORBIS_CAMERA_MAX_DEVICE_NUM];
+    OrbisCameraGamma gamma[ORBIS_CAMERA_MAX_DEVICE_NUM];
+    u32 luminance[ORBIS_CAMERA_MAX_DEVICE_NUM];
+    OrbisFVector3 acceleration;
+    u64 vcounter;
+    u32 reserved[16];
+} OrbisCameraMeta;
+
+typedef struct OrbisCameraFrameData {
+    u32 size_this;
+    u32 read_mode;
+    OrbisCameraFramePosition frame_position[ORBIS_CAMERA_MAX_DEVICE_NUM]
+                                           [ORBIS_CAMERA_MAX_FORMAT_LEVEL_NUM];
+    void* frame_ptr_list[ORBIS_CAMERA_MAX_DEVICE_NUM][ORBIS_CAMERA_MAX_FORMAT_LEVEL_NUM];
+    u32 frame_size[ORBIS_CAMERA_MAX_DEVICE_NUM][ORBIS_CAMERA_MAX_FORMAT_LEVEL_NUM];
+    u32 status[ORBIS_CAMERA_MAX_DEVICE_NUM];
+    OrbisCameraMeta meta;
+    // void* frame_ptr_list_garlic[ORBIS_CAMERA_MAX_DEVICE_NUM][ORBIS_CAMERA_MAX_FORMAT_LEVEL_NUM];
+} OrbisCameraFrameData;
+
+// from the playroom, but this just doesn't want to line up correctly
+// static_assert(sizeof(OrbisCameraFrameData) == 520);
 
 // Empty Comment
 void sceCameraAudioGetData();
@@ -123,7 +219,7 @@ void sceCameraGetDeviceInfo();
 // Empty Comment
 void sceCameraGetExposureGain();
 // Empty Comment
-void sceCameraGetFrameData();
+s32 sceCameraGetFrameData(s32 handle, OrbisCameraFrameData* pFrameData);
 // Empty Comment
 void sceCameraGetGamma();
 // Empty Comment
@@ -139,7 +235,7 @@ void sceCameraGetWhiteBalance();
 // Empty Comment
 s32 sceCameraIsAttached(s32 i);
 // Empty Comment
-void sceCameraIsValidFrameData();
+s32 sceCameraIsValidFrameData(s32 handle, OrbisCameraFrameData* pFrameData);
 // Empty Comment
 int sceCameraOpen(OrbisUserServiceUserId user_id, s32 type, s32 index, void* r1);
 // Empty Comment
@@ -189,7 +285,7 @@ void sceCameraSetSaturation();
 // Empty Comment
 void sceCameraSetSharpness();
 // Empty Comment
-void sceCameraSetVideoSync();
+int sceCameraSetVideoSync(int32_t handle, OrbisCameraVideoSyncParameter* pVideoSync);
 // Empty Comment
 void sceCameraSetVideoSyncInternal();
 // Empty Comment
