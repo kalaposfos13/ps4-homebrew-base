@@ -4,17 +4,26 @@
 #include <camera.h>
 #include <orbis/Sysmodule.h>
 #include <orbis/UserService.h>
+#include <orbis/Pad.h>
 #include "assert.h"
 #include "logging.h"
 #include "types.h"
+#include "graphics.h"
 
-s32 user_id, camera_handle;
+s32 user_id, camera_handle, pad_handle, frame_id = 0;
+Scene2D* scene;
 
 void init_libs() {
     OrbisUserServiceInitializeParams param;
     param.priority = ORBIS_KERNEL_PRIO_FIFO_LOWEST;
     sceUserServiceInitialize(&param);
     sceUserServiceGetInitialUser(&user_id);
+    scePadInit();
+    pad_handle = scePadOpen(user_id, 0, 0, 0);
+
+    int frameID = 0;
+    scene = new Scene2D(1920, 1080, 4);
+    ASSERT_MSG(scene->Init(0xC000000, 2), "Failed to initialize 2D scene");
 }
 
 void dump_frame_data(OrbisCameraFrameData const& d) {
@@ -64,6 +73,11 @@ int main(void) {
     LOG_INFO("PlayStation Camera set up and started.");
 
     for (int i = 0; i < 100; i++) {
+        OrbisPadData pdata;
+        scePadReadState(pad_handle, &pdata);
+        if ((pdata.buttons & OrbisPadButton::ORBIS_PAD_BUTTON_CIRCLE) != 0) {
+            break;
+        }
         OrbisCameraFrameData frameData;
         frameData.size_this = (sizeof(OrbisCameraFrameData));
         frameData.read_mode = 0;
@@ -77,6 +91,18 @@ int main(void) {
         }
         // LOG_INFO("Got valid frame, ptr: {}", frameData.frame_ptr_list[0][0]);
         // dump_frame_data(frameData);
+
+        scene->FrameBufferClear();
+
+        // draw stuff
+
+        // Submit the frame buffer
+        scene->SubmitFlip(frame_id);
+        scene->FrameWait(frame_id);
+
+        // Swap to the next buffer
+        scene->FrameBufferSwap();
+        frame_id++;
     }
 
     sceCameraStop(camera_handle);
