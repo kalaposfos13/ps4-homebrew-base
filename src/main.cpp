@@ -8,7 +8,7 @@
 #include "logging.h"
 #include "types.h"
 
-s32 user_id;
+s32 user_id, camera_handle;
 
 void init_libs() {
     OrbisUserServiceInitializeParams param;
@@ -27,8 +27,24 @@ int main(void) {
         LOG_INFO("Please connect the PlayStation Camera.");
         sceKernelSleep(1);
     }
-    LOG_INFO("PlayStation Camera connected.");
 
+    ASSERT((camera_handle = sceCameraOpen(ORBIS_USER_SERVICE_USER_ID_SYSTEM, 0, 0, nullptr)) >= 0);
+    LOG_INFO("PlayStation Camera connected (handle: {})", camera_handle);
+
+    OrbisCameraConfig cconfig{};
+    cconfig.size_this = sizeof(OrbisCameraConfig);
+    cconfig.config_type = ORBIS_CAMERA_CONFIG_TYPE1;
+    ASSERT(sceCameraSetConfig(camera_handle, &cconfig) == ORBIS_OK);
+
+    OrbisCameraStartParameter cstart_param{};
+    cstart_param.size_this = sizeof(OrbisCameraStartParameter);
+    cstart_param.format_level[0] = ORBIS_CAMERA_FRAME_FORMAT_LEVEL0;
+    ASSERT(sceCameraStart(camera_handle, &cstart_param) == ORBIS_OK);
+    LOG_INFO("PlayStation Camera set up and started.");
+
+    sceCameraStop(camera_handle);
+    sceCameraClose(camera_handle);
+    LOG_INFO("PlayStation Camera closed.");
     sceSystemServiceLoadExec("EXIT", nullptr);
     return 0;
 }
