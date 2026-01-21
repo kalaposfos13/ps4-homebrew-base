@@ -72,7 +72,7 @@ int main(void) {
     ASSERT(sceCameraSetVideoSync(camera_handle, &cvsync_param) == ORBIS_OK);
     LOG_INFO("PlayStation Camera set up and started.");
 
-    for (int i = 0; i < 100; i++) {
+    while (true) {
         OrbisPadData pdata;
         scePadReadState(pad_handle, &pdata);
         if ((pdata.buttons & OrbisPadButton::ORBIS_PAD_BUTTON_CIRCLE) != 0) {
@@ -95,6 +95,7 @@ int main(void) {
         scene->FrameBufferClear();
 
         // draw stuff
+        std::memcpy(scene->frameBuffers[scene->activeFrameBufferIdx], frameData.frame_ptr_list[0][0], 2000000);
 
         // Submit the frame buffer
         scene->SubmitFlip(frame_id);
