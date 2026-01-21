@@ -1,11 +1,11 @@
 # Package metadata.
-TITLE       := homebrew example project
+TITLE       := camera test
 VERSION     := 0.01
-TITLE_ID    := KALA00001
+TITLE_ID    := KALA00014
 CONTENT_ID  := IV0000-$(TITLE_ID)_00-HOMEBREW00000000
 
 # Libraries linked into the ELF.
-LIBS        := -lc -lkernel -lc++ -lSceSysUtil -lSceSystemService
+LIBS        := -lc -lkernel -lc++ -lSceSysUtil -lSceSystemService -lSceUserService -lSceCamera
 
 # Additional compile flags.
 #EXTRAFLAGS  := 
@@ -26,7 +26,7 @@ CPPFILES    := $(shell find src -name "*.cpp")
 OBJS        := $(patsubst %.cpp,$(INTDIR)/%.o, $(CPPFILES)) $(patsubst %.c,$(INTDIR)/%.o,$(CFILES))
 # Define final C/C++ flags
 CFLAGS      := --target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -c $(EXTRAFLAGS) -isysroot $(TOOLCHAIN) -isystem $(TOOLCHAIN)/include -Isrc
-CXXFLAGS    := $(CFLAGS) -isystem $(TOOLCHAIN)/include/c++/v1 -fexceptions -fcxx-exceptions
+CXXFLAGS    := -isystem $(TOOLCHAIN)/include/c++/v1 -fexceptions -fcxx-exceptions $(CFLAGS) 
 LDFLAGS     := -m elf_x86_64 -pie --script $(TOOLCHAIN)/link.x --eh-frame-hdr -L$(TOOLCHAIN)/lib $(LIBS) $(TOOLCHAIN)/lib/crt1.o
 
 # Create the intermediate directory incase it doesn't already exist.
