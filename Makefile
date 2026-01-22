@@ -25,7 +25,7 @@ CFILES      := $(shell find src -name "*.c")
 CPPFILES    := $(shell find src -name "*.cpp")
 OBJS        := $(patsubst %.cpp,$(INTDIR)/%.o, $(CPPFILES)) $(patsubst %.c,$(INTDIR)/%.o,$(CFILES))
 # Define final C/C++ flags
-CFLAGS      := --target=x86_64-pc-freebsd12-elf -fPIC -funwind-tables -c $(EXTRAFLAGS) -isysroot $(TOOLCHAIN) -isystem $(TOOLCHAIN)/include -Isrc
+CFLAGS      := --target=x86_64-pc-freebsd12-elf -fPIC -D_LIBCPP_HAS_MUSL_LIBC=1 -D_GNU_SOURCE=1 -O3 -march=x86-64-v2 -funwind-tables -c $(EXTRAFLAGS) -isysroot $(TOOLCHAIN) -isystem $(TOOLCHAIN)/include -Isrc
 CXXFLAGS    := -isystem $(TOOLCHAIN)/include/c++/v1 -fexceptions -fcxx-exceptions $(CFLAGS) 
 LDFLAGS     := -m elf_x86_64 -pie --script $(TOOLCHAIN)/link.x --eh-frame-hdr -L$(TOOLCHAIN)/lib $(LIBS) $(TOOLCHAIN)/lib/crt1.o
 

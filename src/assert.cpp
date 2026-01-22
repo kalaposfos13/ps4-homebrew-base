@@ -3,16 +3,19 @@
 
 #include "assert.h"
 #include "logging.h"
+#include <unistd.h>
 
-#define Crash() __asm__ __volatile__("int $3")
+#define Crash() quick_exit(1)
 
 void assert_fail_impl() {
     std::fflush(stdout);
+    usleep(10000);
     Crash();
 }
 
 [[noreturn]] void unreachable_impl() {
     std::fflush(stdout);
+    usleep(10000);
     Crash();
     throw std::runtime_error("Unreachable code");
 }
