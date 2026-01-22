@@ -13,6 +13,49 @@
 s32 user_id, camera_handle, pad_handle, frame_id = 0;
 Scene2D* scene;
 
+inline Color YUV422toRGB(uint8_t y, uint8_t u, uint8_t v) {
+    int c = y - 16;
+    int d = u - 128;
+    int e = v - 128;
+
+    int r = (298 * c + 409 * e + 128) >> 8;
+    int g = (298 * c - 100 * d - 208 * e + 128) >> 8;
+    int b = (298 * c + 516 * d + 128) >> 8;
+
+    Color color;
+    color.r = (r < 0) ? 0 : (r > 255) ? 255 : r;
+    color.g = (g < 0) ? 0 : (g > 255) ? 255 : g;
+    color.b = (b < 0) ? 0 : (b > 255) ? 255 : b;
+    return color;
+}
+
+void DrawYUV422Frame(Scene2D* scene, void* yuvBuffer, int width, int height) {
+    uint8_t* src = reinterpret_cast<uint8_t*>(yuvBuffer);
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x += 2) {
+            int idx = (y * width + x) * 2;
+            uint8_t y0 = src[idx + 0];
+            uint8_t u = src[idx + 1];
+            uint8_t y1 = src[idx + 2];
+            uint8_t v = src[idx + 3];
+
+            // uint8_t y0 = src[(y * width + x) * 2 + 0];
+            // uint8_t u = src[(y * width + x) * 2 + 1];
+            // uint8_t y1 = src[(y * width + x + 1) * 2 + 0];
+            // uint8_t v = src[(y * width + x + 1) * 2 + 1];
+
+            // uint8_t u = src[idx + 0];
+            // uint8_t y0 = src[idx + 1];
+            // uint8_t v = src[idx + 2];
+            // uint8_t y1 = src[idx + 3];
+
+            scene->DrawPixel(x + 0, y, YUV422toRGB(y0, u, v));
+            scene->DrawPixel(x + 1, y, YUV422toRGB(y1, u, v));
+        }
+    }
+}
+
 void init_libs() {
     OrbisUserServiceInitializeParams param;
     param.priority = ORBIS_KERNEL_PRIO_FIFO_LOWEST;
@@ -58,7 +101,7 @@ int main(void) {
 
     OrbisCameraConfig cconfig{};
     cconfig.size_this = sizeof(OrbisCameraConfig);
-    cconfig.config_type = ORBIS_CAMERA_CONFIG_TYPE1;
+    cconfig.config_type = ORBIS_CAMERA_CONFIG_TYPE2;
     ASSERT(sceCameraSetConfig(camera_handle, &cconfig) == ORBIS_OK);
 
     OrbisCameraStartParameter cstart_param{};
@@ -94,6 +137,7 @@ int main(void) {
         frameData.read_mode = 0;
         if (sceCameraGetFrameData(camera_handle, &frameData) != ORBIS_OK) {
             LOG_INFO("Couldn't obtain frame data.");
+            sceKernelUsleep(10000);
             continue;
         }
         if (sceCameraIsValidFrameData(camera_handle, &frameData) == 0) {
@@ -105,9 +149,11 @@ int main(void) {
 
         scene->FrameBufferClear();
 
-        // draw stuff
-        std::memcpy(scene->frameBuffers[scene->activeFrameBufferIdx],
-                    frameData.frame_ptr_list[eye][0], 2000000);
+        // for the real thing
+        DrawYUV422Frame(scene, frameData.frame_ptr_list[eye][0], 1280, 800);
+
+        // for my webcam that I use for testing shadPS4
+        // DrawYUV422Frame(scene, frameData.frame_ptr_list[eye][0], 640, 480);
 
         // Submit the frame buffer
         scene->SubmitFlip(frame_id);
