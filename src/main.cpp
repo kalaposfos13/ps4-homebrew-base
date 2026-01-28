@@ -10,7 +10,11 @@
 #include "logging.h"
 #include "types.h"
 
-#   define STUB_WEAK(name) extern "C" void name() { printf("called " #name); asm volatile("ud2"); }
+#define STUB_WEAK(name)                                                                            \
+    extern "C" void name() {                                                                       \
+        printf("called " #name);                                                                   \
+        asm volatile("ud2");                                                                       \
+    }
 STUB_WEAK(__assert)
 FILE* __stderrp = stdout;
 s32 user_id, camera_handle, pad_handle, frame_id = 0;
@@ -25,32 +29,92 @@ static inline uint32_t YUVtoRGBA(uint8_t y, uint8_t u, uint8_t v) {
     int g = (298 * c - 100 * d - 208 * e + 128) >> 8;
     int b = (298 * c + 516 * d + 128) >> 8;
 
-    if (r < 0) r = 0; else if (r > 255) r = 255;
-    if (g < 0) g = 0; else if (g > 255) g = 255;
-    if (b < 0) b = 0; else if (b > 255) b = 255;
+    if (r < 0)
+        r = 0;
+    else if (r > 255)
+        r = 255;
+    if (g < 0)
+        g = 0;
+    else if (g > 255)
+        g = 255;
+    if (b < 0)
+        b = 0;
+    else if (b > 255)
+        b = 255;
 
     return 0x80000000u | (r << 16) | (g << 8) | b;
 }
 
+static inline uint8_t Convert12to8(uint16_t v) {
+    return (uint8_t)v >> 4;
+}
+
+static inline uint32_t BGGRtoRGBA(u16 b, u16 g, u16 r) {
+    return 0x80000000u | ((r << 16) & 0xff) | ((g << 8) & 0xff) | (b & 0xff);
+}
+
 void DrawYUV422Frame(Scene2D* scene, void* yuvBuffer, int width, int height) {
-    uint8_t* src = static_cast<uint8_t*>(yuvBuffer);
-    uint32_t* dst =
-        reinterpret_cast<uint32_t*>(scene->frameBuffers[scene->activeFrameBufferIdx]);
+    u8* src = static_cast<u8*>(yuvBuffer);
+    u32* dst = reinterpret_cast<u32*>(scene->frameBuffers[scene->activeFrameBufferIdx]);
 
     for (int y = 0; y < height; y++) {
-        uint32_t* row = dst + y * scene->width;
+        u32* row = dst + y * scene->width;
         int srcRow = y * width * 2;
 
         for (int x = 0; x < width; x += 2) {
             int idx = srcRow + x * 2;
 
-            uint8_t y0 = src[idx + 0];
-            uint8_t u  = src[idx + 1];
-            uint8_t y1 = src[idx + 2];
-            uint8_t v  = src[idx + 3];
+            u16 y0 = src[idx + 0];
+            u16 u = src[idx + 1];
+            u16 y1 = src[idx + 2];
+            u16 v = src[idx + 3];
 
             row[x + 0] = YUVtoRGBA(y0, u, v);
             row[x + 1] = YUVtoRGBA(y1, u, v);
+        }
+    }
+}
+
+void DrawRAW16Frame(Scene2D* scene, void* rawBuffer, int width, int height) {
+    const u16* src = static_cast<const u16*>(rawBuffer);
+    u32* dst = reinterpret_cast<u32*>(scene->frameBuffers[scene->activeFrameBufferIdx]);
+
+    for (int y = 0; y < height - 1; y++) {
+        for (int x = 0; x < width - 1; x++) {
+            int idx = y * width + x;
+
+            bool evenRow = (y & 1) == 0;
+            bool evenCol = (x & 1) == 0;
+
+            u16 R = 0, G = 0, B = 0;
+
+            if (evenRow && evenCol) {
+                // B
+                B = src[idx];
+                G = src[idx + 1];
+                R = src[idx + width + 1];
+            } else if (evenRow && !evenCol) {
+                // G (blue row)
+                G = src[idx];
+                B = src[idx - 1];
+                R = src[idx + width];
+            } else if (!evenRow && evenCol) {
+                // G (red row)
+                G = src[idx];
+                R = src[idx + 1];
+                B = src[idx - width];
+            } else {
+                // R
+                R = src[idx];
+                G = src[idx - 1];
+                B = src[idx - width - 1];
+            }
+
+            u8 r = Convert12to8(R);
+            u8 g = Convert12to8(G);
+            u8 b = Convert12to8(B);
+
+            dst[y * scene->width + x] = (0xFF << 24) | (r << 16) | (g << 8) | b;
         }
     }
 }
@@ -100,7 +164,7 @@ int main(void) {
 
     OrbisCameraConfig cconfig{};
     cconfig.size_this = sizeof(OrbisCameraConfig);
-    cconfig.config_type = ORBIS_CAMERA_CONFIG_TYPE2;
+    cconfig.config_type = ORBIS_CAMERA_CONFIG_TYPE1;
     ASSERT(sceCameraSetConfig(camera_handle, &cconfig) == ORBIS_OK);
 
     OrbisCameraStartParameter cstart_param{};
@@ -149,7 +213,11 @@ int main(void) {
         scene->FrameBufferClear();
 
         // for the real thing
-        DrawYUV422Frame(scene, frameData.frame_ptr_list[eye][0], 1280, 800);
+        if (eye == 0) {
+            DrawYUV422Frame(scene, frameData.frame_ptr_list[eye][0], 1280, 800);
+        } else {
+            DrawRAW16Frame(scene, frameData.frame_ptr_list[eye][0], 1280, 800);
+        }
 
         // for my webcam that I use for testing shadPS4
         // DrawYUV422Frame(scene, frameData.frame_ptr_list[eye][0], 640, 480);
