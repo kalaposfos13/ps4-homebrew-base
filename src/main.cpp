@@ -46,11 +46,7 @@ static inline uint32_t YUVtoRGBA(uint8_t y, uint8_t u, uint8_t v) {
 }
 
 static inline uint8_t Convert12to8(uint16_t v) {
-    return (uint8_t)v >> 4;
-}
-
-static inline uint32_t BGGRtoRGBA(u16 b, u16 g, u16 r) {
-    return 0x80000000u | ((r << 16) & 0xff) | ((g << 8) & 0xff) | (b & 0xff);
+    return v >> 4;
 }
 
 void DrawYUV422Frame(Scene2D* scene, void* yuvBuffer, int width, int height) {
@@ -83,8 +79,8 @@ void DrawRAW16Frame(Scene2D* scene, void* rawBuffer, int width, int height) {
         for (int x = 0; x < width - 1; x++) {
             int idx = y * width + x;
 
-            bool evenRow = (y & 1) == 0;
-            bool evenCol = (x & 1) == 0;
+            bool evenRow = (y % 2) == 0;
+            bool evenCol = (x % 2) == 0;
 
             u16 R = 0, G = 0, B = 0;
 
@@ -103,16 +99,18 @@ void DrawRAW16Frame(Scene2D* scene, void* rawBuffer, int width, int height) {
                 G = src[idx];
                 R = src[idx + 1];
                 B = src[idx - width];
-            } else {
+            } else if (!evenRow && !evenCol) {
                 // R
                 R = src[idx];
                 G = src[idx - 1];
                 B = src[idx - width - 1];
             }
 
-            u8 r = Convert12to8(R);
-            u8 g = Convert12to8(G);
-            u8 b = Convert12to8(B);
+            constexpr u16 WHITE = 4095;
+
+            u8 r = std::min(WHITE, R) >> 4;
+            u8 g = std::min(WHITE, G) >> 4;
+            u8 b = std::min(WHITE, B) >> 4;
 
             dst[y * scene->width + x] = (0xFF << 24) | (r << 16) | (g << 8) | b;
         }
@@ -179,7 +177,7 @@ int main(void) {
     ASSERT(sceCameraSetVideoSync(camera_handle, &cvsync_param) == ORBIS_OK);
     LOG_INFO("PlayStation Camera set up and started.");
 
-    int eye = 0, sq_pressed = false;
+    int eye = 1, sq_pressed = false;
 
     while (true) {
         OrbisPadData pdata;
