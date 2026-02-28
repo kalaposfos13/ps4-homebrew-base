@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: Copyright 2021 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <orbis/SystemService.h>
 #include "assert.h"
 #include "logging.h"
 #include <unistd.h>
 
-#define Crash() quick_exit(1)
+#define Crash() do { LOG_NOTIFICATION("Crash"); sceSystemServiceLoadExec("exit", nullptr); } while (0)
 
 void assert_fail_impl() {
     std::fflush(stdout);

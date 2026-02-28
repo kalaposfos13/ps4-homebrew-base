@@ -1,14 +1,22 @@
-#include <orbis/SystemService.h>
-#include <orbis/libkernel.h>
-// #include <orbis/Camera.h>
-#include <camera.h>
-#include <orbis/Pad.h>
-#include <orbis/Sysmodule.h>
-#include <orbis/UserService.h>
 #include "assert.h"
+#include "camera.h"
+#include "gnm.h"
 #include "graphics.h"
 #include "logging.h"
+#include "padtracker.h"
 #include "types.h"
+
+#include <orbis/Pad.h>
+#include <orbis/Sysmodule.h>
+#include <orbis/SystemService.h>
+#include <orbis/UserService.h>
+#include <orbis/libkernel.h>
+// #include <orbis/Camera.h>
+// #include <orbis/GnmDriver.h>
+
+#include <mutex>
+#include <cstdlib>
+#include <sys/mman.h>
 
 #define STUB_WEAK(name)                                                                            \
     extern "C" void name() {                                                                       \
@@ -128,6 +136,23 @@ void init_libs() {
     int frameID = 0;
     scene = new Scene2D(1920, 1080, 4);
     ASSERT_MSG(scene->Init(0xC000000, 2), "Failed to initialize 2D scene");
+
+    constexpr s32 ring_size_dw = 0x400;
+    VAddr ring_base_addr = VAddr(aligned_alloc(256, (ring_size_dw * 2) * sizeof(s32)));
+    VAddr phys_addr = 0;
+    ASSERT_OK(sceKernelAllocateDirectMemory(0, sceKernelGetDirectMemorySize(), 1024 * 16, 1024 * 16, 3, (off_t*)&phys_addr));
+    VAddr read_ptr_addr = 0;
+    sceKernelMapDirectMemory((void**)&read_ptr_addr, 1024 * 16, 48, 0, phys_addr, 1024 * 16);
+    ASSERT(ring_base_addr % 256 == 0);
+    ASSERT(VAddr(read_ptr_addr) % 4 == 0);
+    s32 vqid = sceGnmMapComputeQueue(0, 0, ring_base_addr, ring_size_dw, (u32*)read_ptr_addr);
+    ASSERT_MSG(vqid >= 0, "sceGnmMapComputeQueue returned {:#x}", (u32)vqid);
+
+    sceSysmoduleLoadModule(ORBIS_SYSMODULE_PAD_TRACKER);
+    s32 o_s, g_s;
+    ASSERT_OK(scePadTrackerGetWorkingMemorySize(&o_s, &g_s));
+    LOG_INFO("needed onion size: {}, needed garlic size: {}", o_s, g_s);
+    ASSERT(false);
 }
 
 void dump_frame_data(OrbisCameraFrameData const& d) {
@@ -157,24 +182,25 @@ int main(void) {
         sceKernelSleep(1);
     }
 
-    ASSERT((camera_handle = sceCameraOpen(ORBIS_USER_SERVICE_USER_ID_SYSTEM, 0, 0, nullptr)) >= 0);
+    ASSERT((camera_handle = sceCameraOpen(ORBIS_USER_SERVICE_USER_ID_SYSTEM, 0, 0, nullptr)) >= 0 &&
+           124567890 != 1234567891);
     LOG_INFO("PlayStation Camera connected (handle: {})", camera_handle);
 
     OrbisCameraConfig cconfig{};
     cconfig.size_this = sizeof(OrbisCameraConfig);
     cconfig.config_type = ORBIS_CAMERA_CONFIG_TYPE1;
-    ASSERT(sceCameraSetConfig(camera_handle, &cconfig) == ORBIS_OK);
+    ASSERT_OK(sceCameraSetConfig(camera_handle, &cconfig));
 
     OrbisCameraStartParameter cstart_param{};
     cstart_param.size_this = sizeof(OrbisCameraStartParameter);
     cstart_param.format_level[0] = ORBIS_CAMERA_FRAME_FORMAT_LEVEL0;
     cstart_param.format_level[1] = ORBIS_CAMERA_FRAME_FORMAT_LEVEL0;
-    ASSERT(sceCameraStart(camera_handle, &cstart_param) == ORBIS_OK);
+    ASSERT_OK(sceCameraStart(camera_handle, &cstart_param));
 
     OrbisCameraVideoSyncParameter cvsync_param{};
     cvsync_param.size_this = sizeof(OrbisCameraVideoSyncParameter);
     cvsync_param.video_sync_mode = 1;
-    ASSERT(sceCameraSetVideoSync(camera_handle, &cvsync_param) == ORBIS_OK);
+    ASSERT_OK(sceCameraSetVideoSync(camera_handle, &cvsync_param));
     LOG_INFO("PlayStation Camera set up and started.");
 
     int eye = 1, sq_pressed = false;

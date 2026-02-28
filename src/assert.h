@@ -13,7 +13,6 @@
 void assert_fail_impl();
 [[noreturn]] void unreachable_impl();
 
-
 #ifdef _MSC_VER
 #define SHAD_NO_INLINE __declspec(noinline)
 #else
@@ -23,7 +22,16 @@ void assert_fail_impl();
 #define ASSERT(_a_)                                                                                \
     ([&]() SHAD_NO_INLINE {                                                                        \
         if (!(_a_)) [[unlikely]] {                                                                 \
-            LOG_CRITICAL("Assertion failed!");                                                     \
+            LOG_CRITICAL("Assertion failed!\n" #_a_ " is false");                                  \
+            assert_fail_impl();                                                                    \
+        }                                                                                          \
+    }())
+
+#define ASSERT_OK(_a_)                                                                             \
+    ([&]() SHAD_NO_INLINE {                                                                        \
+        auto _r_ = _a_;                                                                            \
+        if (_r_ != 0) [[unlikely]] {                                                               \
+            LOG_CRITICAL("Assertion failed!\n" #_a_ " returned {}", _r_);                          \
             assert_fail_impl();                                                                    \
         }                                                                                          \
     }())
