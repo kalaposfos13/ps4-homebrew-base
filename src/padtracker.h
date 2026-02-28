@@ -43,7 +43,7 @@ struct OrbisPadTrackerInput {
 
 s32 scePadTrackerCalibrate();
 s32 scePadTrackerGetWorkingMemorySize(s32* onionSize, s32* garlicSize);
-s32 scePadTrackerInit(void* onionMemory, void* garlicMemory, int pipeId, int queueId);
+s32 scePadTrackerInit(VAddr onionMemory, VAddr garlicMemory, int pipeId, int queueId);
 s32 scePadTrackerReadState(s32 handle, OrbisPadTrackerData* data);
 s32 scePadTrackerTerm();
 s32 scePadTrackerUpdate(OrbisPadTrackerInput input);

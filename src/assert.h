@@ -31,7 +31,7 @@ void assert_fail_impl();
     ([&]() SHAD_NO_INLINE {                                                                        \
         auto _r_ = _a_;                                                                            \
         if (_r_ != 0) [[unlikely]] {                                                               \
-            LOG_CRITICAL("Assertion failed!\n" #_a_ " returned {}", _r_);                          \
+            LOG_CRITICAL("Assertion failed!\n" #_a_ " returned {:#x}", _r_);                       \
             assert_fail_impl();                                                                    \
         }                                                                                          \
     }())

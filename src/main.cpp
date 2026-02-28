@@ -14,8 +14,8 @@
 // #include <orbis/Camera.h>
 // #include <orbis/GnmDriver.h>
 
-#include <mutex>
 #include <cstdlib>
+#include <mutex>
 #include <sys/mman.h>
 
 #define STUB_WEAK(name)                                                                            \
@@ -125,6 +125,39 @@ void DrawRAW16Frame(Scene2D* scene, void* rawBuffer, int width, int height) {
     }
 }
 
+enum MemoryProt : u32 {
+    NoAccess = 0,
+    CpuRead = 1,
+    CpuWrite = 2,
+    CpuReadWrite = 3,
+    CpuExec = 4,
+    GpuRead = 16,
+    GpuWrite = 32,
+    GpuReadWrite = 48,
+};
+
+template <typename T>
+[[nodiscard]] constexpr T AlignUp(T value, std::size_t size) {
+    static_assert(std::is_unsigned_v<T>, "T must be an unsigned value.");
+    auto mod{static_cast<T>(value % size)};
+    value -= mod;
+    return static_cast<T>(mod == T{0} ? value : value + size);
+}
+
+static VAddr alloc_memory(size_t size, size_t alignment, u32 memType, u32 prot) {
+    size = AlignUp(size, 16_KB);
+    ASSERT(alignment == AlignUp(alignment, 16_KB));
+
+    off_t phys = 0;
+    ASSERT_OK(sceKernelAllocateDirectMemory(0, sceKernelGetDirectMemorySize(), size, alignment,
+                                            memType, &phys));
+
+    void* virt = nullptr;
+    ASSERT_OK(sceKernelMapDirectMemory(&virt, size, prot, 0, phys, alignment));
+
+    return VAddr(virt);
+}
+
 void init_libs() {
     OrbisUserServiceInitializeParams param;
     param.priority = ORBIS_KERNEL_PRIO_FIFO_LOWEST;
@@ -137,22 +170,27 @@ void init_libs() {
     scene = new Scene2D(1920, 1080, 4);
     ASSERT_MSG(scene->Init(0xC000000, 2), "Failed to initialize 2D scene");
 
-    constexpr s32 ring_size_dw = 0x400;
-    VAddr ring_base_addr = VAddr(aligned_alloc(256, (ring_size_dw * 2) * sizeof(s32)));
-    VAddr phys_addr = 0;
-    ASSERT_OK(sceKernelAllocateDirectMemory(0, sceKernelGetDirectMemorySize(), 1024 * 16, 1024 * 16, 3, (off_t*)&phys_addr));
-    VAddr read_ptr_addr = 0;
-    sceKernelMapDirectMemory((void**)&read_ptr_addr, 1024 * 16, 48, 0, phys_addr, 1024 * 16);
+    constexpr s32 ring_size_dw = 0x200;
+    constexpr size_t ring_size_bytes = ring_size_dw * sizeof(u32);
+
+    VAddr ring_base_addr = alloc_memory(ring_size_bytes + sizeof(u32), 16_KB, ORBIS_KERNEL_WC_GARLIC,
+                                        MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
+    VAddr read_ptr_addr = ring_base_addr + ring_size_bytes;
     ASSERT(ring_base_addr % 256 == 0);
-    ASSERT(VAddr(read_ptr_addr) % 4 == 0);
+    ASSERT(read_ptr_addr % 4 == 0);
     s32 vqid = sceGnmMapComputeQueue(0, 0, ring_base_addr, ring_size_dw, (u32*)read_ptr_addr);
     ASSERT_MSG(vqid >= 0, "sceGnmMapComputeQueue returned {:#x}", (u32)vqid);
 
     sceSysmoduleLoadModule(ORBIS_SYSMODULE_PAD_TRACKER);
     s32 o_s, g_s;
     ASSERT_OK(scePadTrackerGetWorkingMemorySize(&o_s, &g_s));
-    LOG_INFO("needed onion size: {}, needed garlic size: {}", o_s, g_s);
-    ASSERT(false);
+    ASSERT(o_s > 0 && g_s > 0);
+    LOG_INFO("needed onion size: {:#x}, needed garlic size: {:#x}", o_s, g_s);
+    VAddr pt_onion = alloc_memory(o_s, 0, ORBIS_KERNEL_WB_ONION,
+                                      MemoryProt::CpuReadWrite);
+    VAddr pt_garlic = alloc_memory(g_s, 0, ORBIS_KERNEL_WC_GARLIC,
+                                       MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
+    ASSERT_OK(scePadTrackerInit(pt_onion, pt_garlic, 0, 0));
 }
 
 void dump_frame_data(OrbisCameraFrameData const& d) {
