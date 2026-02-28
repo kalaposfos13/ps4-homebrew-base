@@ -173,8 +173,9 @@ void init_libs() {
     constexpr s32 ring_size_dw = 0x200;
     constexpr size_t ring_size_bytes = ring_size_dw * sizeof(u32);
 
-    VAddr ring_base_addr = alloc_memory(ring_size_bytes + sizeof(u32), 16_KB, ORBIS_KERNEL_WC_GARLIC,
-                                        MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
+    VAddr ring_base_addr =
+        alloc_memory(ring_size_bytes + sizeof(u32), 16_KB, ORBIS_KERNEL_WC_GARLIC,
+                     MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
     VAddr read_ptr_addr = ring_base_addr + ring_size_bytes;
     ASSERT(ring_base_addr % 256 == 0);
     ASSERT(read_ptr_addr % 4 == 0);
@@ -187,26 +188,10 @@ void init_libs() {
     ASSERT(o_s > 0 && g_s > 0);
     LOG_INFO("needed onion size: {:#x}, needed garlic size: {:#x}", o_s, g_s);
     VAddr pt_onion = alloc_memory(o_s, 0, ORBIS_KERNEL_WB_ONION,
-                                      MemoryProt::CpuReadWrite);
+                                  MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
     VAddr pt_garlic = alloc_memory(g_s, 0, ORBIS_KERNEL_WC_GARLIC,
-                                       MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
-    ASSERT_OK(scePadTrackerInit(pt_onion, pt_garlic, 0, 0));
-}
-
-void dump_frame_data(OrbisCameraFrameData const& d) {
-    LOG_INFO("Frame dump:");
-    fmt::println("size: {}", d.size_this);
-    for (int i = 0; i < ORBIS_CAMERA_MAX_DEVICE_NUM; i++) {
-        for (int j = 0; j < ORBIS_CAMERA_MAX_FORMAT_LEVEL_NUM; j++) {
-            auto const& fp = d.frame_position[i][j];
-            fmt::println("pos{}_{}: ({:#x} {:#x})", i, j, fp.x, fp.y);
-        }
-    }
-    for (int i = 0; i < ORBIS_CAMERA_MAX_DEVICE_NUM; i++) {
-        fmt::println("status_{}: {}", i, d.status[i]);
-    }
-    fmt::println("accel: {} {} {}", d.meta.acceleration.x, d.meta.acceleration.y,
-                 d.meta.acceleration.z);
+                                   MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
+    ASSERT_OK(scePadTrackerInit(pt_onion, pt_garlic, 0, vqid));
 }
 
 int main(void) {
@@ -220,13 +205,12 @@ int main(void) {
         sceKernelSleep(1);
     }
 
-    ASSERT((camera_handle = sceCameraOpen(ORBIS_USER_SERVICE_USER_ID_SYSTEM, 0, 0, nullptr)) >= 0 &&
-           124567890 != 1234567891);
+    ASSERT((camera_handle = sceCameraOpen(ORBIS_USER_SERVICE_USER_ID_SYSTEM, 0, 0, nullptr)) >= 0);
     LOG_INFO("PlayStation Camera connected (handle: {})", camera_handle);
 
     OrbisCameraConfig cconfig{};
     cconfig.size_this = sizeof(OrbisCameraConfig);
-    cconfig.config_type = ORBIS_CAMERA_CONFIG_TYPE1;
+    cconfig.config_type = ORBIS_CAMERA_CONFIG_TYPE4;
     ASSERT_OK(sceCameraSetConfig(camera_handle, &cconfig));
 
     OrbisCameraStartParameter cstart_param{};
@@ -241,7 +225,59 @@ int main(void) {
     ASSERT_OK(sceCameraSetVideoSync(camera_handle, &cvsync_param));
     LOG_INFO("PlayStation Camera set up and started.");
 
-    int eye = 1, sq_pressed = false;
+    OrbisCameraExposureGain eg{};
+    sceCameraGetExposureGain(camera_handle, 1, &eg, nullptr);
+
+    OrbisPadTrackerInput pt_input{};
+    pt_input.handles[0] = pad_handle;
+    pt_input.handles[1] = -1;
+    pt_input.handles[2] = -1;
+    pt_input.handles[3] = -1;
+    pt_input.images[0].exposure = eg.exposure;
+    pt_input.images[0].gain = eg.gain;
+    pt_input.images[0].width = 1280;
+    pt_input.images[0].height = 800;
+    pt_input.images[0].data = nullptr;
+    pt_input.images[1].data = nullptr;
+
+    OrbisPadTrackerData pt_data{};
+
+    int eye = 0, sq_pressed = false;
+
+    // camera warmup and tracker calibration
+    ASSERT_OK(scePadTrackerCalibrate());
+    bool tracker_calibrated = false;
+    for (int i = 0; i < 1000; i++) {
+        OrbisCameraFrameData frameData;
+        frameData.size_this = (sizeof(OrbisCameraFrameData));
+        frameData.read_mode = 0;
+        frameData.meta.exposureGain[0].exposureControl = 0;
+        frameData.meta.exposureGain[1].exposureControl = 0;
+        if (sceCameraGetFrameData(camera_handle, &frameData) != ORBIS_OK) {
+            sceKernelUsleep(10000);
+            continue;
+        }
+        if (!sceCameraIsValidFrameData(camera_handle, &frameData)) {
+            sceKernelUsleep(10000);
+            continue;
+        }
+
+        pt_input.images[0].data = frameData.frame_ptr_list[0][0];
+
+        ASSERT_OK(scePadTrackerUpdate(pt_input));
+        scePadTrackerReadState(pad_handle, &pt_data);
+        if (pt_data.imageCoordinates[0].status == ORBIS_PAD_TRACKER_TRACKING) {
+            tracker_calibrated = true;
+            break;
+        } else if (pt_data.imageCoordinates[0].status != ORBIS_PAD_TRACKER_CALIBRATING) {
+            LOG_WARNING("scePadTrackerReadState returned {}",
+                        (u32)pt_data.imageCoordinates[0].status);
+        }
+        sceKernelUsleep(10000);
+    }
+
+    ASSERT(tracker_calibrated);
+    LOG_INFO("finished camera warmup, tracker is tracking");
 
     while (true) {
         OrbisPadData pdata;
@@ -276,14 +312,27 @@ int main(void) {
 
         // for the real thing
         if (eye == 0) {
-            DrawYUV422Frame(scene, frameData.frame_ptr_list[eye][0], 1280, 800);
+            DrawRAW16Frame(scene, frameData.frame_ptr_list[eye][0], 1280, 800);
         } else {
             DrawRAW16Frame(scene, frameData.frame_ptr_list[eye][0], 1280, 800);
         }
 
         // for my webcam that I use for testing shadPS4
         // DrawYUV422Frame(scene, frameData.frame_ptr_list[eye][0], 640, 480);
+
         // DrawYUV422Frame(scene, frameData.frame_ptr_list[eye][0], 1920, 1080);
+
+        // draw tracker output
+        pt_input.images[0].data = frameData.frame_ptr_list[0][0];
+        ASSERT_OK(scePadTrackerUpdate(pt_input));
+        ASSERT_OK(scePadTrackerReadState(pad_handle, &pt_data));
+        if (pt_data.imageCoordinates[0].status != ORBIS_PAD_TRACKER_TRACKING) {
+            LOG_ERROR("status is {}", (u32)pt_data.imageCoordinates[0].status);
+        }
+        // LOG_INFO("tracker x0: {}, x1: {}", pt_data.imageCoordinates[0].x * 1280,
+                //  pt_data.imageCoordinates[1].x * 1280);
+        scene->DrawRectangle((pt_data.imageCoordinates[0].x * 1280) - 0,
+                             (pt_data.imageCoordinates[0].y * 800) - 0, 10, 10, {255, 0, 0});
 
         // Submit the frame buffer
         scene->SubmitFlip(frame_id);

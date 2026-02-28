@@ -81,6 +81,12 @@ typedef enum OrbisCameraFramerate {
     ORBIS_CAMERA_FRAMERATE_240 = 240,
 } OrbisCameraFramerate;
 
+typedef enum OrbisCameraChannel {
+    SCE_CAMERA_CHANNEL_0 = 1,
+    SCE_CAMERA_CHANNEL_1 = 2,
+    SCE_CAMERA_CHANNEL_BOTH = 3,
+} OrbisCameraChannel;
+
 typedef struct OrbisCameraFormat {
     OrbisCameraBaseFormat format_level0;
     OrbisCameraScaleFormat format_level1;
@@ -217,7 +223,8 @@ void sceCameraGetDeviceConfig();
 // Empty Comment
 void sceCameraGetDeviceInfo();
 // Empty Comment
-void sceCameraGetExposureGain();
+s32 sceCameraGetExposureGain(int32_t handle, s32 channel, OrbisCameraExposureGain* pExposureGain,
+                             void* pOption);
 // Empty Comment
 s32 sceCameraGetFrameData(s32 handle, OrbisCameraFrameData* pFrameData);
 // Empty Comment
