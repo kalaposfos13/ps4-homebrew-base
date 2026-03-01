@@ -267,7 +267,7 @@ void Scene2D::DrawText(char const* txt, FT_Face face, int startX, int startY, Co
         // character
         if (txt[n] == '\n') {
             xOffset = 0;
-            yOffset += slot->bitmap.width * 2;
+            yOffset += 50;
 
             continue;
         }

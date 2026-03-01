@@ -71,6 +71,7 @@ public:
 
     Scene2D* scene{};
     AppState state{};
+    FT_Face font{};
 
     OrbisCameraExposureGain exposure_gain{};
 

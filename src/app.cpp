@@ -138,7 +138,11 @@ App::App() {
     int frameID = 0;
     scene = new Scene2D(1920, 1080, 4);
     ASSERT_MSG(scene->Init(0xC000000, 2), "Failed to initialize 2D scene");
-    DrawLoadingFrame();
+
+    std::string font_path =
+        fmt::format("/{}/common/font/DFHEI5-SONY.ttf", sceKernelGetFsSandboxRandomWord());
+    ASSERT_MSG(scene->InitFont(&font, font_path.c_str(), 40) && font != nullptr,
+               "Failed to init font");
 }
 
 App::~App() {
@@ -376,6 +380,19 @@ void App::DrawMoveTrackerResult() {
         LOG_INFO("x: {}, y: {}, z: {}", mt_state.position.x, mt_state.position.y,
                  mt_state.position.z);
     }
+    std::string pos_text =
+        fmt::format("x: {:+07.3f}\ny: {:+07.3f}\nz: {:+07.3f}", mt_state.position.x,
+                    mt_state.position.y, mt_state.position.z);
+    scene->DrawText(pos_text.c_str(), font, 50, 850, {0, 0, 0}, {255, 255, 255});
+
+    std::string cam_stats_text = fmt::format("cam pitch: {:+07.3f}, roll: {:+07.3f}",
+                                             mt_state.cameraPitchAngle, mt_state.cameraRollAngle);
+    scene->DrawText(cam_stats_text.c_str(), font, 50, 1000, {0, 0, 0}, {255, 255, 255});
+
+    auto const& acc = mt_state.acceleration;
+    std::string accel_text =
+        fmt::format("dx: {:+07.3f}\ndy: {:+07.3f}\ndz: {:+07.3f}", acc.x, acc.y, acc.z);
+    scene->DrawText(accel_text.c_str(), font, 400, 850, {0, 0, 0}, {255, 255, 255});
 }
 
 void App::DrawLoadingFrame() {
