@@ -44,7 +44,7 @@ s32 sceMoveReadStateLatest(s32 handle, OrbisMoveData* pData);
 
 // movetracker
 
-constexpr s32 ORBIS_MOVE_MAX_CONTROLLERS = 2;
+constexpr s32 ORBIS_MOVE_MAX_CONTROLLERS = 4;
 constexpr s32 ORBIS_MOVE_TRACKER_IMAGE_MAX = 2;
 constexpr s32 ORBIS_MOVE_TRACKER_LATENCY = -22000;
 

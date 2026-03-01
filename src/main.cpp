@@ -303,19 +303,25 @@ int main(void) {
         mt_images[0].data = frameData.frame_ptr_list[0][0];
         mt_images[1].data = frameData.frame_ptr_list[1][0];
         LOG_CALL(sceMoveTrackerCameraUpdate(mt_images, frameData.meta.acceleration));
-        OrbisMoveData m_data{}, m_data2{};
-        OrbisMoveTrackerControllerInput mt_controllers[2]{};
+        OrbisMoveData m_data[ORBIS_MOVE_MAX_CONTROLLERS]{};
+        OrbisMoveTrackerControllerInput mt_controllers[ORBIS_MOVE_MAX_CONTROLLERS]{};
         mt_controllers[0].handle = move_handle;
-        mt_controllers[0].data = &m_data;
+        mt_controllers[0].data = &m_data[0];
         mt_controllers[0].num = 1;
         mt_controllers[1].handle = -1;
-        mt_controllers[1].data = &m_data2;
+        mt_controllers[1].data = &m_data[1];
         mt_controllers[1].num = 0;
+        mt_controllers[2].handle = -1;
+        mt_controllers[2].data = &m_data[2];
+        mt_controllers[2].num = 0;
+        mt_controllers[3].handle = -1;
+        mt_controllers[3].data = &m_data[3];
+        mt_controllers[3].num = 0;
         ASSERT_NO_ERROR(sceMoveReadStateLatest(move_handle, mt_controllers[0].data));
         LOG_CALL(sceMoveTrackerControllersUpdate(mt_controllers));
 
         OrbisMoveTrackerState mt_state{};
-        LOG_CALL(ASSERT_NO_ERROR(sceMoveTrackerGetState(move_handle, now - ORBIS_MOVE_TRACKER_LATENCY, &mt_state)));
+        LOG_CALL(ASSERT_NO_ERROR(sceMoveTrackerGetState(move_handle, s64(-1), &mt_state)));
         sceKernelUsleep(10000);
     }
 
@@ -384,19 +390,25 @@ int main(void) {
         mt_images[1].timestamp = now;
         mt_images[0].data = frameData.frame_ptr_list[0][0];
         mt_images[1].data = frameData.frame_ptr_list[1][0];
-        LOG_CALL(sceMoveTrackerCameraUpdate(mt_images, frameData.meta.acceleration));
-        OrbisMoveData m_data{}, m_data2{};
-        OrbisMoveTrackerControllerInput mt_controllers[2]{};
+        sceMoveTrackerCameraUpdate(mt_images, frameData.meta.acceleration);
+        OrbisMoveData m_data[ORBIS_MOVE_MAX_CONTROLLERS]{};
+        OrbisMoveTrackerControllerInput mt_controllers[ORBIS_MOVE_MAX_CONTROLLERS]{};
         mt_controllers[0].handle = move_handle;
-        mt_controllers[0].data = &m_data;
+        mt_controllers[0].data = &m_data[0];
         mt_controllers[0].num = 1;
         mt_controllers[1].handle = -1;
-        mt_controllers[1].data = &m_data2;
+        mt_controllers[1].data = &m_data[1];
         mt_controllers[1].num = 0;
-        LOG_CALL(ASSERT_OK(sceMoveReadStateLatest(move_handle, mt_controllers[0].data)));
-        LOG_CALL(ASSERT_OK(sceMoveTrackerControllersUpdate(mt_controllers)));
+        mt_controllers[2].handle = -1;
+        mt_controllers[2].data = &m_data[2];
+        mt_controllers[2].num = 0;
+        mt_controllers[3].handle = -1;
+        mt_controllers[3].data = &m_data[3];
+        mt_controllers[3].num = 0;
+        ASSERT_NO_ERROR(sceMoveReadStateLatest(move_handle, mt_controllers[0].data));
+        ASSERT_OK(sceMoveTrackerControllersUpdate(mt_controllers));
         OrbisMoveTrackerState mt_state{};
-        LOG_CALL(ASSERT_OK(sceMoveTrackerGetState(move_handle, now - ORBIS_MOVE_TRACKER_LATENCY, &mt_state)));
+        ASSERT_NO_ERROR(sceMoveTrackerGetState(move_handle, s64(-1), &mt_state));
         if ((mt_state.flags & 1) == 1) {
             LOG_INFO("Move controller is tracking, x: {}, y: {}, z: {}", mt_state.position.x,
                      mt_state.position.y, mt_state.position.z);
