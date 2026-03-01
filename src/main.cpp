@@ -210,6 +210,71 @@ void pad_get_print_info() {
     }
     return;
 }
+
+enum Status : u32 {
+    Tracking,
+    NotTracking,
+    Calibrating,
+    Error,
+};
+
+Status update_and_get_pad_tracker_data(OrbisPadTrackerInput& pt_input,
+                                       OrbisCameraFrameData const& frame_data,
+                                       OrbisPadTrackerData& pt_output) {
+    pt_input.images[0].data = frame_data.frame_ptr_list[0][0];
+    pt_input.images[1].data = frame_data.frame_ptr_list[1][0];
+
+    ASSERT_OK(scePadTrackerUpdate(pt_input));
+    scePadTrackerReadState(pad_handle, &pt_output);
+    switch (pt_output.imageCoordinates[0].status) {
+    case ORBIS_PAD_TRACKER_TRACKING:
+        return Status::Tracking;
+    case ORBIS_PAD_TRACKER_NOT_TRACKING:
+        return Status::NotTracking;
+    case ORBIS_PAD_TRACKER_CALIBRATING:
+        return Status::Calibrating;
+    default:
+        UNREACHABLE();
+        return Status::Error;
+    }
+}
+
+Status update_and_get_move_tracker_data(
+    OrbisCameraFrameData const& frame_data,
+    OrbisMoveTrackerControllerInput mt_controllers[ORBIS_MOVE_MAX_CONTROLLERS],
+    OrbisMoveTrackerImage mt_images[ORBIS_CAMERA_MAX_DEVICE_NUM], OrbisMoveTrackerState& mt_state) {
+    OrbisMoveData m_data[ORBIS_MOVE_MAX_CONTROLLERS];
+    auto now = sceKernelGetProcessTime();
+    mt_images[0].timestamp = now;
+    mt_images[1].timestamp = now;
+    mt_images[0].data = frame_data.frame_ptr_list[0][0];
+    mt_images[1].data = frame_data.frame_ptr_list[1][0];
+    ASSERT_OK(sceMoveTrackerCameraUpdate(mt_images, frame_data.meta.acceleration));
+    mt_controllers[0].handle = move_handle;
+    mt_controllers[0].data = &m_data[0];
+    mt_controllers[0].num = 1;
+    mt_controllers[1].handle = -1;
+    mt_controllers[1].data = &m_data[1];
+    mt_controllers[1].num = 0;
+    mt_controllers[2].handle = -1;
+    mt_controllers[2].data = &m_data[2];
+    mt_controllers[2].num = 0;
+    mt_controllers[3].handle = -1;
+    mt_controllers[3].data = &m_data[3];
+    mt_controllers[3].num = 0;
+    ASSERT_NO_ERROR(sceMoveReadStateLatest(move_handle, mt_controllers[0].data));
+    ASSERT_OK(sceMoveTrackerControllersUpdate(mt_controllers));
+    s32 get_state_status = 0;
+    ASSERT_NO_ERROR(get_state_status = sceMoveTrackerGetState(move_handle, s64(-1), &mt_state));
+    if (get_state_status != 1)
+        LOG_INFO("sceMoveTrackerGetState: {}", get_state_status);
+    if ((mt_state.flags & 1) != 0) {
+        return Status::Tracking;
+    } else {
+        return Status::NotTracking;
+    }
+}
+
 int main(void) {
     init_libs();
 
@@ -221,7 +286,8 @@ int main(void) {
         sceKernelSleep(1);
     }
 
-    ASSERT_NO_ERROR(camera_handle = sceCameraOpen(ORBIS_USER_SERVICE_USER_ID_SYSTEM, 0, 0, nullptr));
+    ASSERT_NO_ERROR(camera_handle =
+                        sceCameraOpen(ORBIS_USER_SERVICE_USER_ID_SYSTEM, 0, 0, nullptr));
     LOG_INFO("PlayStation Camera connected (handle: {})", camera_handle);
 
     OrbisCameraConfig cconfig{};
@@ -246,86 +312,78 @@ int main(void) {
 
     LOG_INFO("exposure: {}, gain: {}", eg.exposure, eg.gain);
 
+    OrbisCameraFrameData frame_data{};
+    frame_data.size_this = (sizeof(OrbisCameraFrameData));
+    frame_data.read_mode = 0;
+    frame_data.meta.exposureGain[0].exposureControl = 0;
+    frame_data.meta.exposureGain[1].exposureControl = 0;
+
     OrbisPadTrackerInput pt_input{};
     pt_input.handles[0] = pad_handle;
     pt_input.handles[1] = -1;
     pt_input.handles[2] = -1;
     pt_input.handles[3] = -1;
+
     pt_input.images[0].exposure = eg.exposure;
     pt_input.images[0].gain = eg.gain;
     pt_input.images[0].width = 1280;
     pt_input.images[0].height = 800;
+    pt_input.images[1].exposure = eg.exposure;
+    pt_input.images[1].gain = eg.gain;
+    pt_input.images[1].width = 1280;
+    pt_input.images[1].height = 800;
+
     pt_input.images[0].data = nullptr;
     pt_input.images[1].data = nullptr;
-    OrbisPadTrackerData pt_data{};
 
-    OrbisMoveTrackerImage mt_images[2]{};
+    OrbisPadTrackerData pt_output{};
+
+    OrbisMoveTrackerImage mt_images[ORBIS_CAMERA_MAX_DEVICE_NUM]{};
     mt_images[0].exposure = eg.exposure;
     mt_images[0].gain = eg.gain;
     mt_images[1].exposure = eg.exposure;
     mt_images[1].gain = eg.gain;
+
+    OrbisMoveData m_data[ORBIS_MOVE_MAX_CONTROLLERS]{};
+    OrbisMoveTrackerControllerInput mt_controllers[ORBIS_MOVE_MAX_CONTROLLERS]{};
+    OrbisMoveTrackerState mt_state{};
 
     int eye = 0, sq_pressed = false;
 
     // camera warmup and tracker calibration
     ASSERT_OK(scePadTrackerCalibrate());
     ASSERT_OK(sceMoveTrackerCalibrateReset());
-    bool tracker_calibrated = false;
-    for (int i = 0; i < 10; i++) {
-        OrbisCameraFrameData frameData;
-        frameData.size_this = (sizeof(OrbisCameraFrameData));
-        frameData.read_mode = 0;
-        frameData.meta.exposureGain[0].exposureControl = 0;
-        frameData.meta.exposureGain[1].exposureControl = 0;
-        if (sceCameraGetFrameData(camera_handle, &frameData) != ORBIS_OK) {
+    bool pad_tracker_calibrated = false, move_tracker_calibrated = false;
+    for (int i = 0; i < 100; i++) {
+        if (sceCameraGetFrameData(camera_handle, &frame_data) != ORBIS_OK) {
             sceKernelUsleep(10000);
             continue;
         }
-        if (!sceCameraIsValidFrameData(camera_handle, &frameData)) {
+        if (!sceCameraIsValidFrameData(camera_handle, &frame_data)) {
             sceKernelUsleep(10000);
             continue;
         }
 
-        pt_input.images[0].data = frameData.frame_ptr_list[0][0];
-
-        ASSERT_OK(scePadTrackerUpdate(pt_input));
-        scePadTrackerReadState(pad_handle, &pt_data);
-        if (pt_data.imageCoordinates[0].status == ORBIS_PAD_TRACKER_TRACKING) {
-            tracker_calibrated = true;
+        if (update_and_get_pad_tracker_data(pt_input, frame_data, pt_output) == Status::Tracking) {
+            pad_tracker_calibrated = true;
+        }
+        if (update_and_get_move_tracker_data(frame_data, mt_controllers, mt_images, mt_state) ==
+            Status::Tracking) {
+            move_tracker_calibrated = true;
+        }
+        if (pad_tracker_calibrated && move_tracker_calibrated) {
             break;
-        } else if (pt_data.imageCoordinates[0].status != ORBIS_PAD_TRACKER_CALIBRATING) {
-            LOG_WARNING("scePadTrackerReadState returned {}",
-                        (u32)pt_data.imageCoordinates[0].status);
         }
-        auto now = sceKernelGetProcessTime();
-        mt_images[0].timestamp = now;
-        mt_images[1].timestamp = now;
-        mt_images[0].data = frameData.frame_ptr_list[0][0];
-        mt_images[1].data = frameData.frame_ptr_list[1][0];
-        LOG_CALL(sceMoveTrackerCameraUpdate(mt_images, frameData.meta.acceleration));
-        OrbisMoveData m_data[ORBIS_MOVE_MAX_CONTROLLERS]{};
-        OrbisMoveTrackerControllerInput mt_controllers[ORBIS_MOVE_MAX_CONTROLLERS]{};
-        mt_controllers[0].handle = move_handle;
-        mt_controllers[0].data = &m_data[0];
-        mt_controllers[0].num = 1;
-        mt_controllers[1].handle = -1;
-        mt_controllers[1].data = &m_data[1];
-        mt_controllers[1].num = 0;
-        mt_controllers[2].handle = -1;
-        mt_controllers[2].data = &m_data[2];
-        mt_controllers[2].num = 0;
-        mt_controllers[3].handle = -1;
-        mt_controllers[3].data = &m_data[3];
-        mt_controllers[3].num = 0;
-        ASSERT_NO_ERROR(sceMoveReadStateLatest(move_handle, mt_controllers[0].data));
-        LOG_CALL(sceMoveTrackerControllersUpdate(mt_controllers));
-
-        OrbisMoveTrackerState mt_state{};
-        LOG_CALL(ASSERT_NO_ERROR(sceMoveTrackerGetState(move_handle, s64(-1), &mt_state)));
         sceKernelUsleep(10000);
     }
 
-    // ASSERT(tracker_calibrated);
+    if (!pad_tracker_calibrated) {
+        LOG_NOTIFICATION("Pad tracking did not finish in time");
+    }
+    if (!move_tracker_calibrated) {
+        LOG_NOTIFICATION("Move tracking did not finish in time");
+    }
+
     LOG_INFO("finished camera warmup, tracker is tracking");
 
     while (true) {
@@ -343,72 +401,40 @@ int main(void) {
         } else {
             sq_pressed = false;
         }
-        OrbisCameraFrameData frameData;
-        frameData.size_this = (sizeof(OrbisCameraFrameData));
-        frameData.read_mode = 0;
-        if (sceCameraGetFrameData(camera_handle, &frameData) != ORBIS_OK) {
+        if (sceCameraGetFrameData(camera_handle, &frame_data) != ORBIS_OK) {
             // LOG_INFO("Couldn't obtain frame data.");
             sceKernelUsleep(10000);
             continue;
         }
-        if (sceCameraIsValidFrameData(camera_handle, &frameData) == 0) {
+        if (sceCameraIsValidFrameData(camera_handle, &frame_data) == 0) {
             LOG_INFO("Invalid frame, most likely a me skill issue.");
             continue;
         }
         // LOG_INFO("Got valid frame, ptr: {} {}", frameData.frame_ptr_list[0][0],
-        // frameData.frame_ptr_list[1][0]); dump_frame_data(frameData);
+        // frameData.frame_ptr_list[1][0]); dump_frame_data(frame_data);
 
         scene->FrameBufferClear();
 
         // for the real thing
         if (eye == 0) {
-            DrawRAW16Frame(scene, frameData.frame_ptr_list[eye][0], 1280, 800);
+            DrawRAW16Frame(scene, frame_data.frame_ptr_list[eye][0], 1280, 800);
         } else {
-            DrawRAW16Frame(scene, frameData.frame_ptr_list[eye][0], 1280, 800);
+            DrawRAW16Frame(scene, frame_data.frame_ptr_list[eye][0], 1280, 800);
         }
 
         // for my webcam that I use for testing shadPS4
         // DrawYUV422Frame(scene, frameData.frame_ptr_list[eye][0], 640, 480);
-
+        // for the capture card
         // DrawYUV422Frame(scene, frameData.frame_ptr_list[eye][0], 1920, 1080);
 
         // draw tracker output
-        pt_input.images[0].data = frameData.frame_ptr_list[0][0];
-        ASSERT_OK(scePadTrackerUpdate(pt_input));
-        ASSERT_OK(scePadTrackerReadState(pad_handle, &pt_data));
-        auto status = pt_data.imageCoordinates[0].status;
-        if (status == ORBIS_PAD_TRACKER_TRACKING) {
-            // scene->DrawRectangle((pt_data.imageCoordinates[0].x * 1280) - 0,
-            //                      (pt_data.imageCoordinates[0].y * 800) - 0, 10, 10, {255, 0, 0});
-        }
-        if (status != ORBIS_PAD_TRACKER_NOT_TRACKING) {
-            LOG_INFO("readstate: {}", (u32)status);
+        auto status = update_and_get_pad_tracker_data(pt_input, frame_data, pt_output);
+        if (status == Status::Tracking) {
+            scene->DrawRectangle((pt_output.imageCoordinates[0].x * 1280) - 0,
+                                 (pt_output.imageCoordinates[0].y * 800) - 0, 10, 10, {255, 0, 0});
         }
 
-        auto now = sceKernelGetProcessTime();
-        mt_images[0].timestamp = now;
-        mt_images[1].timestamp = now;
-        mt_images[0].data = frameData.frame_ptr_list[0][0];
-        mt_images[1].data = frameData.frame_ptr_list[1][0];
-        sceMoveTrackerCameraUpdate(mt_images, frameData.meta.acceleration);
-        OrbisMoveData m_data[ORBIS_MOVE_MAX_CONTROLLERS]{};
-        OrbisMoveTrackerControllerInput mt_controllers[ORBIS_MOVE_MAX_CONTROLLERS]{};
-        mt_controllers[0].handle = move_handle;
-        mt_controllers[0].data = &m_data[0];
-        mt_controllers[0].num = 1;
-        mt_controllers[1].handle = -1;
-        mt_controllers[1].data = &m_data[1];
-        mt_controllers[1].num = 0;
-        mt_controllers[2].handle = -1;
-        mt_controllers[2].data = &m_data[2];
-        mt_controllers[2].num = 0;
-        mt_controllers[3].handle = -1;
-        mt_controllers[3].data = &m_data[3];
-        mt_controllers[3].num = 0;
-        ASSERT_NO_ERROR(sceMoveReadStateLatest(move_handle, mt_controllers[0].data));
-        ASSERT_OK(sceMoveTrackerControllersUpdate(mt_controllers));
-        OrbisMoveTrackerState mt_state{};
-        ASSERT_NO_ERROR(sceMoveTrackerGetState(move_handle, s64(-1), &mt_state));
+        status = update_and_get_move_tracker_data(frame_data, mt_controllers, mt_images, mt_state);
         if ((mt_state.flags & 1) == 1) {
             LOG_INFO("Move controller is tracking, x: {}, y: {}, z: {}", mt_state.position.x,
                      mt_state.position.y, mt_state.position.z);
