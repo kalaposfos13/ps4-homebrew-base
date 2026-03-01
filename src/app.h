@@ -29,9 +29,9 @@ enum Status : u32 {
 };
 
 struct AppState {
-    s32 current_eye = 0;
+    s32 eye = 0;
     bool sq_pressed = false;
-    Status pt_status = Status::Error;
+    Status pt_status[ORBIS_CAMERA_MAX_DEVICE_NUM] = {Status::Error, Status::Error};
     Status mt_status = Status::Error;
 };
 
@@ -43,8 +43,8 @@ public:
     void InitTrackers();
     void CalibrateTrackers();
     bool UpdateCamera();
-    Status UpdatePadTracker();
-    Status UpdateMoveTracker();
+    void UpdatePadTracker();
+    void UpdateMoveTracker();
     bool HandleInput();
     void DrawFrame();
     void DrawLoadingFrame();

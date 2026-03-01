@@ -260,10 +260,10 @@ void App::CalibrateTrackers() {
             continue;
         }
 
-        if (UpdatePadTracker() == Status::Tracking) {
+        if (UpdatePadTracker(), state.pt_status[0] == Status::Tracking) {
             pad_tracker_calibrated = true;
         }
-        if (UpdateMoveTracker() == Status::Tracking) {
+        if (UpdateMoveTracker(), state.mt_status == Status::Tracking) {
             move_tracker_calibrated = true;
         }
         if (pad_tracker_calibrated && move_tracker_calibrated) {
@@ -291,30 +291,31 @@ bool App::UpdateCamera() {
     return true;
 }
 
-Status App::UpdatePadTracker() {
+void App::UpdatePadTracker() {
     pt_input.images[0].data = frame_data.frame_ptr_list[0][0];
     pt_input.images[1].data = frame_data.frame_ptr_list[1][0];
 
     ASSERT_OK(scePadTrackerUpdate(pt_input));
     scePadTrackerReadState(pad_handle, &pt_output);
-    switch (pt_output.imageCoordinates[0].status) {
-    case ORBIS_PAD_TRACKER_TRACKING:
-        state.pt_status = Status::Tracking;
-        break;
-    case ORBIS_PAD_TRACKER_NOT_TRACKING:
-        state.pt_status = Status::NotTracking;
-        break;
-    case ORBIS_PAD_TRACKER_CALIBRATING:
-        state.pt_status = Status::Calibrating;
-        break;
-    default:
-        UNREACHABLE_MSG("pt_status: {}", (u32)pt_output.imageCoordinates[0].status);
-        state.pt_status = Status::Error;
+    for (int i = 0; i < ORBIS_CAMERA_MAX_DEVICE_NUM; i++) {
+        switch (pt_output.imageCoordinates[i].status) {
+        case ORBIS_PAD_TRACKER_TRACKING:
+            state.pt_status[i] = Status::Tracking;
+            break;
+        case ORBIS_PAD_TRACKER_NOT_TRACKING:
+            state.pt_status[i] = Status::NotTracking;
+            break;
+        case ORBIS_PAD_TRACKER_CALIBRATING:
+            state.pt_status[i] = Status::Calibrating;
+            break;
+        default:
+            UNREACHABLE_MSG("pt_status: {}", (u32)pt_output.imageCoordinates[0].status);
+            state.pt_status[i] = Status::Error;
+        }
     }
-    return state.pt_status;
 }
 
-Status App::UpdateMoveTracker() {
+void App::UpdateMoveTracker() {
     OrbisMoveData m_data[ORBIS_MOVE_MAX_CONTROLLERS];
     auto now = sceKernelGetProcessTime();
     mt_images[0].timestamp = now;
@@ -333,7 +334,6 @@ Status App::UpdateMoveTracker() {
     } else {
         state.mt_status = Status::NotTracking;
     }
-    return state.mt_status;
 }
 
 bool App::HandleInput() {
@@ -343,24 +343,24 @@ bool App::HandleInput() {
     }
     if ((pdata.buttons & OrbisPadButton::ORBIS_PAD_BUTTON_SQUARE) != 0) {
         if (!state.sq_pressed) {
-            state.current_eye = 1 - state.current_eye;
+            state.eye = 1 - state.eye;
             state.sq_pressed = true;
         }
     } else {
         state.sq_pressed = false;
-        }
+    }
     return true;
 }
 
 void App::DrawFrame() {
     scene->FrameBufferClear();
 
-    switch (frame_data.meta.format[state.current_eye][0]) {
+    switch (frame_data.meta.format[state.eye][0]) {
     case ORBIS_CAMERA_FORMAT_YUV422:
-        DrawYUV422Frame(scene, frame_data.frame_ptr_list[state.current_eye][0], 1280, 800);
+        DrawYUV422Frame(scene, frame_data.frame_ptr_list[state.eye][0], 1280, 800);
         break;
     case ORBIS_CAMERA_FORMAT_RAW16:
-        DrawRAW16Frame(scene, frame_data.frame_ptr_list[state.current_eye][0], 1280, 800);
+        DrawRAW16Frame(scene, frame_data.frame_ptr_list[state.eye][0], 1280, 800);
         break;
     case ORBIS_CAMERA_FORMAT_RAW8:
     default:
@@ -368,9 +368,15 @@ void App::DrawFrame() {
         break;
     }
 
-    if (state.pt_status == Status::Tracking) {
-        scene->DrawRectangle((pt_output.imageCoordinates[0].x * 1280) - 0,
-                             (pt_output.imageCoordinates[0].y * 800) - 0, 10, 10, {255, 0, 0});
+    if (state.pt_status[state.eye] == Status::Tracking) {
+        scene->DrawRectangle((pt_output.imageCoordinates[state.eye].x * 1280) - 0,
+                             (pt_output.imageCoordinates[state.eye].y * 800) - 0, 10, 10,
+                             {255, 0, 0});
+    }
+    if (state.pt_status[1 - state.eye] == Status::Tracking) {
+        scene->DrawRectangle((pt_output.imageCoordinates[1 - state.eye].x * 1280) - 0,
+                             (pt_output.imageCoordinates[1 - state.eye].y * 800) - 0, 10, 10,
+                             {0, 255, 0});
     }
 
     if (state.mt_status == Status::Tracking) {

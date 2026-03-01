@@ -12,6 +12,5 @@ int main(void) {
         app.UpdatePadTracker();
         app.UpdateMoveTracker();
         app.DrawFrame();
-
     }
 }
