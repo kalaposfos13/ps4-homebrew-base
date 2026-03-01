@@ -164,12 +164,13 @@ static VAddr alloc_memory(size_t size, size_t alignment, u32 memType, u32 prot) 
 }
 
 void init_libs() {
+    sceSysmoduleLoadModule(ORBIS_SYSMODULE_MOVE);
     OrbisUserServiceInitializeParams param;
     param.priority = ORBIS_KERNEL_PRIO_FIFO_LOWEST;
     sceUserServiceInitialize(&param);
     sceUserServiceGetInitialUser(&user_id);
     scePadInit();
-    pad_handle = scePadOpen(user_id, 0, 0, 0);
+    ASSERT_NO_ERROR(pad_handle = scePadOpen(user_id, 0, 0, 0));
     LOG_INFO("userid: {}, pad handle: {:x}", user_id, pad_handle);
 
     ASSERT_OK(sceMoveInit());
@@ -209,7 +210,6 @@ void pad_get_print_info() {
     }
     return;
 }
-
 int main(void) {
     init_libs();
 
@@ -221,7 +221,7 @@ int main(void) {
         sceKernelSleep(1);
     }
 
-    ASSERT((camera_handle = sceCameraOpen(ORBIS_USER_SERVICE_USER_ID_SYSTEM, 0, 0, nullptr)) >= 0);
+    ASSERT_NO_ERROR(camera_handle = sceCameraOpen(ORBIS_USER_SERVICE_USER_ID_SYSTEM, 0, 0, nullptr));
     LOG_INFO("PlayStation Camera connected (handle: {})", camera_handle);
 
     OrbisCameraConfig cconfig{};
@@ -302,17 +302,20 @@ int main(void) {
         mt_images[1].timestamp = now;
         mt_images[0].data = frameData.frame_ptr_list[0][0];
         mt_images[1].data = frameData.frame_ptr_list[1][0];
-        sceMoveTrackerCameraUpdate(mt_images, frameData.meta.acceleration);
-        OrbisMoveData m_data{};
+        LOG_CALL(sceMoveTrackerCameraUpdate(mt_images, frameData.meta.acceleration));
+        OrbisMoveData m_data{}, m_data2{};
         OrbisMoveTrackerControllerInput mt_controllers[2]{};
         mt_controllers[0].handle = move_handle;
         mt_controllers[0].data = &m_data;
         mt_controllers[0].num = 1;
         mt_controllers[1].handle = -1;
-        ASSERT_OK(sceMoveReadStateLatest(move_handle, mt_controllers[0].data));
-        ASSERT_OK(sceMoveTrackerControllersUpdate(mt_controllers));
+        mt_controllers[1].data = &m_data2;
+        mt_controllers[1].num = 0;
+        ASSERT_NO_ERROR(sceMoveReadStateLatest(move_handle, mt_controllers[0].data));
+        LOG_CALL(sceMoveTrackerControllersUpdate(mt_controllers));
+
         OrbisMoveTrackerState mt_state{};
-        ASSERT_OK(sceMoveTrackerGetState(move_handle, now - ORBIS_MOVE_TRACKER_LATENCY, &mt_state));
+        LOG_CALL(ASSERT_NO_ERROR(sceMoveTrackerGetState(move_handle, now - ORBIS_MOVE_TRACKER_LATENCY, &mt_state)));
         sceKernelUsleep(10000);
     }
 
@@ -381,17 +384,19 @@ int main(void) {
         mt_images[1].timestamp = now;
         mt_images[0].data = frameData.frame_ptr_list[0][0];
         mt_images[1].data = frameData.frame_ptr_list[1][0];
-        sceMoveTrackerCameraUpdate(mt_images, frameData.meta.acceleration);
-        OrbisMoveData m_data{};
+        LOG_CALL(sceMoveTrackerCameraUpdate(mt_images, frameData.meta.acceleration));
+        OrbisMoveData m_data{}, m_data2{};
         OrbisMoveTrackerControllerInput mt_controllers[2]{};
         mt_controllers[0].handle = move_handle;
         mt_controllers[0].data = &m_data;
         mt_controllers[0].num = 1;
         mt_controllers[1].handle = -1;
-        ASSERT_OK(sceMoveReadStateLatest(move_handle, mt_controllers[0].data));
-        ASSERT_OK(sceMoveTrackerControllersUpdate(mt_controllers));
+        mt_controllers[1].data = &m_data2;
+        mt_controllers[1].num = 0;
+        LOG_CALL(ASSERT_OK(sceMoveReadStateLatest(move_handle, mt_controllers[0].data)));
+        LOG_CALL(ASSERT_OK(sceMoveTrackerControllersUpdate(mt_controllers)));
         OrbisMoveTrackerState mt_state{};
-        ASSERT_OK(sceMoveTrackerGetState(move_handle, now - ORBIS_MOVE_TRACKER_LATENCY, &mt_state));
+        LOG_CALL(ASSERT_OK(sceMoveTrackerGetState(move_handle, now - ORBIS_MOVE_TRACKER_LATENCY, &mt_state)));
         if ((mt_state.flags & 1) == 1) {
             LOG_INFO("Move controller is tracking, x: {}, y: {}, z: {}", mt_state.position.x,
                      mt_state.position.y, mt_state.position.z);

@@ -35,7 +35,14 @@ void assert_fail_impl();
             assert_fail_impl();                                                                    \
         }                                                                                          \
     }())
-
+#define ASSERT_NO_ERROR(_a_)                                                                             \
+    ([&]() SHAD_NO_INLINE {                                                                        \
+        auto _r_ = _a_;                                                                            \
+        if (_r_ < 0) [[unlikely]] {                                                               \
+            LOG_CRITICAL("Assertion failed!\n" #_a_ " returned {:#x}", (u32)_r_);                  \
+            assert_fail_impl();                                                                    \
+        }                                                                                          \
+    }())
 #define ASSERT_MSG(_a_, ...)                                                                       \
     ([&]() SHAD_NO_INLINE {                                                                        \
         if (!(_a_)) [[unlikely]] {                                                                 \
