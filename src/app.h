@@ -40,13 +40,17 @@ public:
     App();
     ~App();
     void InitCamera();
-    void InitTrackers();
-    void CalibrateTrackers();
+    void InitPadTracker();
+    void InitMoveTracker();
     bool UpdateCamera();
     void UpdatePadTracker();
     void UpdateMoveTracker();
     bool HandleInput();
-    void DrawFrame();
+    void FrameStart();
+    void FrameEnd();
+    void DrawCameraImage();
+    void DrawPadTrackerResult();
+    void DrawMoveTrackerResult();
     void DrawLoadingFrame();
 
     s32 user_id{};
@@ -63,6 +67,7 @@ public:
     OrbisMoveData m_data[ORBIS_MOVE_MAX_CONTROLLERS]{};
     OrbisMoveTrackerControllerInput mt_controllers[ORBIS_MOVE_MAX_CONTROLLERS]{};
     OrbisMoveTrackerState mt_state{};
+    OrbisCameraExposureGain exposuregain{};
 
     Scene2D* scene{};
     AppState state{};

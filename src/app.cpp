@@ -135,9 +135,6 @@ App::App() {
     ASSERT_NO_ERROR(pad_handle = scePadOpen(user_id, 0, 0, 0));
     LOG_INFO("userid: {}, pad handle: {:x}", user_id, pad_handle);
 
-    ASSERT_OK(sceMoveInit());
-    move_handle = sceMoveOpen(user_id, /*standard*/ 0, 0);
-
     int frameID = 0;
     scene = new Scene2D(1920, 1080, 4);
     ASSERT_MSG(scene->Init(0xC000000, 2), "Failed to initialize 2D scene");
@@ -180,39 +177,57 @@ void App::InitCamera() {
     cvsync_param.video_sync_mode = 1;
     ASSERT_OK(sceCameraSetVideoSync(camera_handle, &cvsync_param));
     LOG_INFO("PlayStation Camera set up and started.");
-}
-
-void App::InitTrackers() {
-    LOG_INFO("Setting up trackers");
-    OrbisCameraExposureGain eg{};
-    sceCameraGetExposureGain(camera_handle, 1, &eg, nullptr);
 
     frame_data.size_this = (sizeof(OrbisCameraFrameData));
     frame_data.read_mode = 0;
     frame_data.meta.exposureGain[0].exposureControl = 0;
     frame_data.meta.exposureGain[1].exposureControl = 0;
 
+    sceCameraGetExposureGain(camera_handle, 1, &exposuregain, nullptr);
+}
+
+void App::InitPadTracker() {
+    LOG_INFO("Setting up pad tracker");
+    sceCameraGetExposureGain(camera_handle, 1, &exposuregain, nullptr);
+
     pt_input.handles[0] = pad_handle;
     pt_input.handles[1] = -1;
     pt_input.handles[2] = -1;
     pt_input.handles[3] = -1;
 
-    pt_input.images[0].exposure = eg.exposure;
-    pt_input.images[0].gain = eg.gain;
+    pt_input.images[0].exposure = exposuregain.exposure;
+    pt_input.images[0].gain = exposuregain.gain;
     pt_input.images[0].width = 1280;
     pt_input.images[0].height = 800;
-    pt_input.images[1].exposure = eg.exposure;
-    pt_input.images[1].gain = eg.gain;
+    pt_input.images[1].exposure = exposuregain.exposure;
+    pt_input.images[1].gain = exposuregain.gain;
     pt_input.images[1].width = 1280;
     pt_input.images[1].height = 800;
 
     pt_input.images[0].data = nullptr;
     pt_input.images[1].data = nullptr;
 
-    mt_images[0].exposure = eg.exposure;
-    mt_images[0].gain = eg.gain;
-    mt_images[1].exposure = eg.exposure;
-    mt_images[1].gain = eg.gain;
+    s32 pt_o_s, pt_g_s;
+    ASSERT_OK(scePadTrackerGetWorkingMemorySize(&pt_o_s, &pt_g_s));
+    ASSERT(pt_o_s > 0 && pt_g_s > 0);
+    LOG_INFO("needed onion size: {:#x}, needed garlic size: {:#x}", pt_o_s, pt_g_s);
+    VAddr pt_onion = alloc_memory(pt_o_s, 0, ORBIS_KERNEL_WB_ONION,
+                                  MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
+    VAddr pt_garlic = alloc_memory(pt_g_s, 0, ORBIS_KERNEL_WC_GARLIC,
+                                   MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
+    ASSERT_OK(scePadTrackerInit(pt_onion, pt_garlic, 0, 0));
+}
+
+void App::InitMoveTracker() {
+    ASSERT_OK(sceMoveInit());
+    move_handle = sceMoveOpen(user_id, /*standard*/ 0, 0);
+
+    LOG_INFO("Setting up move tracker");
+
+    mt_images[0].exposure = exposuregain.exposure;
+    mt_images[0].gain = exposuregain.gain;
+    mt_images[1].exposure = exposuregain.exposure;
+    mt_images[1].gain = exposuregain.gain;
 
     mt_controllers[0].handle = move_handle;
     mt_controllers[0].data = &m_data[0];
@@ -227,57 +242,15 @@ void App::InitTrackers() {
     mt_controllers[3].data = &m_data[3];
     mt_controllers[3].num = 0;
 
-    s32 pt_o_s, pt_g_s, mt_o_s, mt_g_s;
-    ASSERT_OK(scePadTrackerGetWorkingMemorySize(&pt_o_s, &pt_g_s));
+    s32 mt_o_s, mt_g_s;
     ASSERT_OK(sceMoveTrackerGetWorkingMemorySize(&mt_o_s, &mt_g_s));
-    ASSERT(pt_o_s > 0 && pt_g_s > 0);
-    LOG_INFO("needed onion size: {:#x}, needed garlic size: {:#x}", pt_o_s, pt_g_s);
+    ASSERT(mt_o_s > 0 && mt_g_s > 0);
     LOG_INFO("needed onion size: {:#x}, needed garlic size: {:#x}", mt_o_s, mt_g_s);
-    VAddr pt_onion = alloc_memory(pt_o_s, 0, ORBIS_KERNEL_WB_ONION,
-                                  MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
-    VAddr pt_garlic = alloc_memory(pt_g_s, 0, ORBIS_KERNEL_WC_GARLIC,
-                                   MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
     VAddr mt_onion = alloc_memory(mt_o_s, 0, ORBIS_KERNEL_WB_ONION,
                                   MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
     VAddr mt_garlic = alloc_memory(mt_g_s, 0, ORBIS_KERNEL_WC_GARLIC,
                                    MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
-    ASSERT_OK(scePadTrackerInit(pt_onion, pt_garlic, 0, 0));
     ASSERT_OK(sceMoveTrackerInit(mt_onion, mt_garlic, 0, 1));
-}
-
-void App::CalibrateTrackers() {
-    // camera warmup and tracker calibration
-    ASSERT_OK(scePadTrackerCalibrate());
-    ASSERT_OK(sceMoveTrackerCalibrateReset());
-    bool pad_tracker_calibrated = false, move_tracker_calibrated = false;
-    for (int i = 0; i < 200; i++) {
-        if (sceCameraGetFrameData(camera_handle, &frame_data) != ORBIS_OK) {
-            sceKernelUsleep(10000);
-            continue;
-        }
-        if (!sceCameraIsValidFrameData(camera_handle, &frame_data)) {
-            sceKernelUsleep(10000);
-            continue;
-        }
-
-        if (UpdatePadTracker(), state.pt_status[0] == Status::Tracking) {
-            pad_tracker_calibrated = true;
-        }
-        if (UpdateMoveTracker(), state.mt_status == Status::Tracking) {
-            move_tracker_calibrated = true;
-        }
-        if (pad_tracker_calibrated && move_tracker_calibrated) {
-            break;
-        }
-        sceKernelUsleep(10000);
-    }
-    if (!pad_tracker_calibrated) {
-        LOG_NOTIFICATION("Pad tracking did not finish in time");
-    }
-    if (!move_tracker_calibrated) {
-        LOG_NOTIFICATION("Move tracking did not finish in time");
-    }
-    LOG_INFO("finished camera warmup and tracker calibration");
 }
 
 bool App::UpdateCamera() {
@@ -352,9 +325,18 @@ bool App::HandleInput() {
     return true;
 }
 
-void App::DrawFrame() {
+void App::FrameStart() {
     scene->FrameBufferClear();
+}
 
+void App::FrameEnd() {
+    scene->SubmitFlip(frame_id);
+    scene->FrameWait(frame_id);
+    scene->FrameBufferSwap();
+    frame_id++;
+}
+
+void App::DrawCameraImage() {
     switch (frame_data.meta.format[state.eye][0]) {
     case ORBIS_CAMERA_FORMAT_YUV422:
         DrawYUV422Frame(scene, frame_data.frame_ptr_list[state.eye][0], 1280, 800);
@@ -367,7 +349,9 @@ void App::DrawFrame() {
         UNREACHABLE();
         break;
     }
+}
 
+void App::DrawPadTrackerResult() {
     if (state.pt_status[state.eye] == Status::Tracking) {
         scene->DrawRectangle((pt_output.imageCoordinates[state.eye].x * 1280) - 0,
                              (pt_output.imageCoordinates[state.eye].y * 800) - 0, 10, 10,
@@ -378,27 +362,20 @@ void App::DrawFrame() {
                              (pt_output.imageCoordinates[1 - state.eye].y * 800) - 0, 10, 10,
                              {0, 255, 0});
     }
+    if (state.pt_status[state.eye] == Status::Calibrating) {
+        DrawLoadingFrame();
+    }
+}
 
+void App::DrawMoveTrackerResult() {
     if (state.mt_status == Status::Tracking) {
         LOG_INFO("Move controller is tracking, x: {}, y: {}, z: {}", mt_state.position.x,
                  mt_state.position.y, mt_state.position.z);
     }
-
-    scene->SubmitFlip(frame_id);
-    scene->FrameWait(frame_id);
-    scene->FrameBufferSwap();
-    frame_id++;
 }
 
 void App::DrawLoadingFrame() {
-    scene->FrameBufferClear();
-
-    scene->DrawRectangle(200 + 000, 500, 50, 50, {255, 255, 255});
-    scene->DrawRectangle(200 + 200, 500, 50, 50, {255, 255, 255});
-    scene->DrawRectangle(200 + 400, 500, 50, 50, {255, 255, 255});
-
-    scene->SubmitFlip(frame_id);
-    scene->FrameWait(frame_id);
-    scene->FrameBufferSwap();
-    frame_id++;
+    scene->DrawRectangle(400 + 000, 375, 50, 50, {255, 255, 255});
+    scene->DrawRectangle(400 + 200, 375, 50, 50, {255, 255, 255});
+    scene->DrawRectangle(400 + 400, 375, 50, 50, {255, 255, 255});
 }

@@ -3,7 +3,8 @@
 int main(void) {
     App app{};
     app.InitCamera();
-    app.InitTrackers();
+    app.InitPadTracker();
+    app.InitMoveTracker();
 
     while (app.HandleInput()) {
         if (!app.UpdateCamera()) {
@@ -11,6 +12,10 @@ int main(void) {
         }
         app.UpdatePadTracker();
         app.UpdateMoveTracker();
-        app.DrawFrame();
+        app.FrameStart();
+        app.DrawCameraImage();
+        app.DrawPadTrackerResult();
+        app.DrawMoveTrackerResult();
+        app.FrameEnd();
     }
 }
