@@ -300,12 +300,16 @@ void App::UpdateMoveTracker() {
     ASSERT_OK(sceMoveTrackerControllersUpdate(mt_controllers));
     s32 get_state_status = 0;
     ASSERT_NO_ERROR(get_state_status = sceMoveTrackerGetState(move_handle, s64(-1), &mt_state));
-    if (get_state_status != 1)
-        LOG_INFO("sceMoveTrackerGetState: {}", get_state_status);
-    if ((mt_state.flags & 1) != 0) {
+    switch (get_state_status) {
+    case 0:
         state.mt_status = Status::Tracking;
-    } else {
-        state.mt_status = Status::NotTracking;
+        break;
+    case 3:
+        state.mt_status = Status::Calibrating;
+        break;
+    default:
+        LOG_WARNING("Status is {}", get_state_status);
+        break;
     }
 }
 
@@ -369,8 +373,8 @@ void App::DrawPadTrackerResult() {
 
 void App::DrawMoveTrackerResult() {
     if (state.mt_status == Status::Tracking) {
-        LOG_INFO("Move controller is tracking, x: {}, y: {}, z: {}", mt_state.position.x,
-                 mt_state.position.y, mt_state.position.z);
+        LOG_INFO("x: {}, y: {}, z: {}", mt_state.position.x, mt_state.position.y,
+                 mt_state.position.z);
     }
 }
 
