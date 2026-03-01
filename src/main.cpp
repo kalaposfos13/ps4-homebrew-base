@@ -3,6 +3,7 @@
 #include "gnm.h"
 #include "graphics.h"
 #include "logging.h"
+#include "movetracker.h"
 #include "padtracker.h"
 #include "types.h"
 
@@ -15,7 +16,10 @@
 // #include <orbis/GnmDriver.h>
 
 #include <cstdlib>
+#include <iomanip>
+#include <iostream>
 #include <mutex>
+#include <sstream>
 #include <sys/mman.h>
 
 #define STUB_WEAK(name)                                                                            \
@@ -25,7 +29,8 @@
     }
 STUB_WEAK(__assert)
 FILE* __stderrp = stdout;
-s32 user_id, camera_handle, pad_handle, frame_id = 0;
+
+s32 user_id, camera_handle, pad_handle, move_handle, frame_id = 0;
 Scene2D* scene;
 
 static inline uint32_t YUVtoRGBA(uint8_t y, uint8_t u, uint8_t v) {
@@ -165,33 +170,44 @@ void init_libs() {
     sceUserServiceGetInitialUser(&user_id);
     scePadInit();
     pad_handle = scePadOpen(user_id, 0, 0, 0);
+    LOG_INFO("userid: {}, pad handle: {:x}", user_id, pad_handle);
+
+    ASSERT_OK(sceMoveInit());
+    move_handle = sceMoveOpen(user_id, /*standard*/ 0, 0);
 
     int frameID = 0;
     scene = new Scene2D(1920, 1080, 4);
     ASSERT_MSG(scene->Init(0xC000000, 2), "Failed to initialize 2D scene");
 
-    constexpr s32 ring_size_dw = 0x200;
-    constexpr size_t ring_size_bytes = ring_size_dw * sizeof(u32);
-
-    VAddr ring_base_addr =
-        alloc_memory(ring_size_bytes + sizeof(u32), 16_KB, ORBIS_KERNEL_WC_GARLIC,
-                     MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
-    VAddr read_ptr_addr = ring_base_addr + ring_size_bytes;
-    ASSERT(ring_base_addr % 256 == 0);
-    ASSERT(read_ptr_addr % 4 == 0);
-    s32 vqid = sceGnmMapComputeQueue(0, 0, ring_base_addr, ring_size_dw, (u32*)read_ptr_addr);
-    ASSERT_MSG(vqid >= 0, "sceGnmMapComputeQueue returned {:#x}", (u32)vqid);
-
     sceSysmoduleLoadModule(ORBIS_SYSMODULE_PAD_TRACKER);
-    s32 o_s, g_s;
-    ASSERT_OK(scePadTrackerGetWorkingMemorySize(&o_s, &g_s));
-    ASSERT(o_s > 0 && g_s > 0);
-    LOG_INFO("needed onion size: {:#x}, needed garlic size: {:#x}", o_s, g_s);
-    VAddr pt_onion = alloc_memory(o_s, 0, ORBIS_KERNEL_WB_ONION,
+    sceSysmoduleLoadModule(ORBIS_SYSMODULE_MOVE_TRACKER);
+    s32 pt_o_s, pt_g_s, mt_o_s, mt_g_s;
+    ASSERT_OK(scePadTrackerGetWorkingMemorySize(&pt_o_s, &pt_g_s));
+    ASSERT_OK(sceMoveTrackerGetWorkingMemorySize(&mt_o_s, &mt_g_s));
+    ASSERT(pt_o_s > 0 && pt_g_s > 0);
+    LOG_INFO("needed onion size: {:#x}, needed garlic size: {:#x}", pt_o_s, pt_g_s);
+    LOG_INFO("needed onion size: {:#x}, needed garlic size: {:#x}", mt_o_s, mt_g_s);
+    VAddr pt_onion = alloc_memory(pt_o_s, 0, ORBIS_KERNEL_WB_ONION,
                                   MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
-    VAddr pt_garlic = alloc_memory(g_s, 0, ORBIS_KERNEL_WC_GARLIC,
+    VAddr pt_garlic = alloc_memory(pt_g_s, 0, ORBIS_KERNEL_WC_GARLIC,
                                    MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
-    ASSERT_OK(scePadTrackerInit(pt_onion, pt_garlic, 0, vqid));
+    VAddr mt_onion = alloc_memory(mt_o_s, 0, ORBIS_KERNEL_WB_ONION,
+                                  MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
+    VAddr mt_garlic = alloc_memory(mt_g_s, 0, ORBIS_KERNEL_WC_GARLIC,
+                                   MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
+    ASSERT_OK(scePadTrackerInit(pt_onion, pt_garlic, 0, 0));
+    ASSERT_OK(sceMoveTrackerInit(mt_onion, mt_garlic, 0, 1));
+}
+
+void pad_get_print_info() {
+    LOG_INFO("scePadGetInfo");
+    constexpr s32 size = 8;
+    u32 pad_info[size]{};
+    ASSERT_OK(scePadGetInfo(pad_info));
+    for (int i = 0; i < size; i++) {
+        LOG_INFO("{:08x}\n", pad_info[i]);
+    }
+    return;
 }
 
 int main(void) {
@@ -228,6 +244,8 @@ int main(void) {
     OrbisCameraExposureGain eg{};
     sceCameraGetExposureGain(camera_handle, 1, &eg, nullptr);
 
+    LOG_INFO("exposure: {}, gain: {}", eg.exposure, eg.gain);
+
     OrbisPadTrackerInput pt_input{};
     pt_input.handles[0] = pad_handle;
     pt_input.handles[1] = -1;
@@ -239,15 +257,21 @@ int main(void) {
     pt_input.images[0].height = 800;
     pt_input.images[0].data = nullptr;
     pt_input.images[1].data = nullptr;
-
     OrbisPadTrackerData pt_data{};
+
+    OrbisMoveTrackerImage mt_images[2]{};
+    mt_images[0].exposure = eg.exposure;
+    mt_images[0].gain = eg.gain;
+    mt_images[1].exposure = eg.exposure;
+    mt_images[1].gain = eg.gain;
 
     int eye = 0, sq_pressed = false;
 
     // camera warmup and tracker calibration
     ASSERT_OK(scePadTrackerCalibrate());
+    ASSERT_OK(sceMoveTrackerCalibrateReset());
     bool tracker_calibrated = false;
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 10; i++) {
         OrbisCameraFrameData frameData;
         frameData.size_this = (sizeof(OrbisCameraFrameData));
         frameData.read_mode = 0;
@@ -273,13 +297,30 @@ int main(void) {
             LOG_WARNING("scePadTrackerReadState returned {}",
                         (u32)pt_data.imageCoordinates[0].status);
         }
+        auto now = sceKernelGetProcessTime();
+        mt_images[0].timestamp = now;
+        mt_images[1].timestamp = now;
+        mt_images[0].data = frameData.frame_ptr_list[0][0];
+        mt_images[1].data = frameData.frame_ptr_list[1][0];
+        sceMoveTrackerCameraUpdate(mt_images, frameData.meta.acceleration);
+        OrbisMoveData m_data{};
+        OrbisMoveTrackerControllerInput mt_controllers[2]{};
+        mt_controllers[0].handle = move_handle;
+        mt_controllers[0].data = &m_data;
+        mt_controllers[0].num = 1;
+        mt_controllers[1].handle = -1;
+        ASSERT_OK(sceMoveReadStateLatest(move_handle, mt_controllers[0].data));
+        ASSERT_OK(sceMoveTrackerControllersUpdate(mt_controllers));
+        OrbisMoveTrackerState mt_state{};
+        ASSERT_OK(sceMoveTrackerGetState(move_handle, now - ORBIS_MOVE_TRACKER_LATENCY, &mt_state));
         sceKernelUsleep(10000);
     }
 
-    ASSERT(tracker_calibrated);
+    // ASSERT(tracker_calibrated);
     LOG_INFO("finished camera warmup, tracker is tracking");
 
     while (true) {
+        // pad_get_print_info();
         OrbisPadData pdata;
         scePadReadState(pad_handle, &pdata);
         if ((pdata.buttons & OrbisPadButton::ORBIS_PAD_BUTTON_CIRCLE) != 0) {
@@ -297,7 +338,7 @@ int main(void) {
         frameData.size_this = (sizeof(OrbisCameraFrameData));
         frameData.read_mode = 0;
         if (sceCameraGetFrameData(camera_handle, &frameData) != ORBIS_OK) {
-            LOG_INFO("Couldn't obtain frame data.");
+            // LOG_INFO("Couldn't obtain frame data.");
             sceKernelUsleep(10000);
             continue;
         }
@@ -326,13 +367,35 @@ int main(void) {
         pt_input.images[0].data = frameData.frame_ptr_list[0][0];
         ASSERT_OK(scePadTrackerUpdate(pt_input));
         ASSERT_OK(scePadTrackerReadState(pad_handle, &pt_data));
-        if (pt_data.imageCoordinates[0].status != ORBIS_PAD_TRACKER_TRACKING) {
-            LOG_ERROR("status is {}", (u32)pt_data.imageCoordinates[0].status);
+        auto status = pt_data.imageCoordinates[0].status;
+        if (status == ORBIS_PAD_TRACKER_TRACKING) {
+            // scene->DrawRectangle((pt_data.imageCoordinates[0].x * 1280) - 0,
+            //                      (pt_data.imageCoordinates[0].y * 800) - 0, 10, 10, {255, 0, 0});
         }
-        // LOG_INFO("tracker x0: {}, x1: {}", pt_data.imageCoordinates[0].x * 1280,
-                //  pt_data.imageCoordinates[1].x * 1280);
-        scene->DrawRectangle((pt_data.imageCoordinates[0].x * 1280) - 0,
-                             (pt_data.imageCoordinates[0].y * 800) - 0, 10, 10, {255, 0, 0});
+        if (status != ORBIS_PAD_TRACKER_NOT_TRACKING) {
+            LOG_INFO("readstate: {}", (u32)status);
+        }
+
+        auto now = sceKernelGetProcessTime();
+        mt_images[0].timestamp = now;
+        mt_images[1].timestamp = now;
+        mt_images[0].data = frameData.frame_ptr_list[0][0];
+        mt_images[1].data = frameData.frame_ptr_list[1][0];
+        sceMoveTrackerCameraUpdate(mt_images, frameData.meta.acceleration);
+        OrbisMoveData m_data{};
+        OrbisMoveTrackerControllerInput mt_controllers[2]{};
+        mt_controllers[0].handle = move_handle;
+        mt_controllers[0].data = &m_data;
+        mt_controllers[0].num = 1;
+        mt_controllers[1].handle = -1;
+        ASSERT_OK(sceMoveReadStateLatest(move_handle, mt_controllers[0].data));
+        ASSERT_OK(sceMoveTrackerControllersUpdate(mt_controllers));
+        OrbisMoveTrackerState mt_state{};
+        ASSERT_OK(sceMoveTrackerGetState(move_handle, now - ORBIS_MOVE_TRACKER_LATENCY, &mt_state));
+        if ((mt_state.flags & 1) == 1) {
+            LOG_INFO("Move controller is tracking, x: {}, y: {}, z: {}", mt_state.position.x,
+                     mt_state.position.y, mt_state.position.z);
+        }
 
         // Submit the frame buffer
         scene->SubmitFlip(frame_id);

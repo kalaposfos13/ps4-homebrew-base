@@ -191,7 +191,7 @@ void Scene2D::FrameBufferSwap() {
 
 void Scene2D::FrameBufferClear() {
     // Clear the screen with a white frame buffer
-    Color blank = {0, 0, 0};
+    Color blank = {50, 50, 50};
     FrameBufferFill(blank);
 }
 

@@ -5,7 +5,7 @@ TITLE_ID    := KALA00014
 CONTENT_ID  := IV0000-$(TITLE_ID)_00-HOMEBREW00000000
 
 # Libraries linked into the ELF.
-LIBS        := -lc -lkernel -lc++ -lSceSysUtil -lSceSystemService -lSceUserService -lSceCamera -lScePad -lSceVideoOut -lSceGnmDriver -lScePadTracker -lSceSysmodule
+LIBS        := -lc -lkernel -lc++ -lSceSysUtil -lSceSystemService -lSceUserService -lSceCamera -lScePad -lSceVideoOut -lSceGnmDriver -lScePadTracker -lSceSysmodule -lSceMove -lSceMoveTracker
 
 # Additional compile flags.
 #EXTRAFLAGS  := 

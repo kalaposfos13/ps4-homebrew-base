@@ -18,6 +18,7 @@ typedef struct OrbisFVector3 {
 typedef struct OrbisFVector4 {
     float x, y, z, w;
 } OrbisFVector4;
+typedef OrbisFVector4 OrbisFQuaternion;
 
 typedef enum OrbisCameraBaseFormat {
     ORBIS_CAMERA_FORMAT_YUV422 = 0x0,
