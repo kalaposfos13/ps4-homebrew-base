@@ -46,7 +46,7 @@ void assert_fail_impl();
 #define ASSERT_MSG(_a_, ...)                                                                       \
     ([&]() SHAD_NO_INLINE {                                                                        \
         if (!(_a_)) [[unlikely]] {                                                                 \
-            LOG_CRITICAL("Assertion failed!!\n" __VA_ARGS__);                                      \
+            LOG_CRITICAL("Assertion failed!\n" __VA_ARGS__);                                      \
             assert_fail_impl();                                                                    \
         }                                                                                          \
     }())

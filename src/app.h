@@ -20,6 +20,7 @@
 #include <iostream>
 #include <mutex>
 #include <sstream>
+#include <vector>
 
 enum Status : u32 {
     Tracking,
@@ -30,7 +31,6 @@ enum Status : u32 {
 
 struct AppState {
     s32 eye = 0;
-    bool sq_pressed = false;
     Status pt_status[ORBIS_CAMERA_MAX_DEVICE_NUM] = {Status::Error, Status::Error};
     Status mt_status = Status::Error;
 };
@@ -53,6 +53,9 @@ public:
     void DrawMoveTrackerResult();
     void DrawLoadingFrame();
 
+    bool use_dumped_frame = false;
+    void* dumped_frame_buf{};
+
     s32 user_id{};
     s32 camera_handle{};
     s32 pad_handle{};
@@ -71,7 +74,9 @@ public:
 
     Scene2D* scene{};
     AppState state{};
+#ifdef GRAPHICS_USES_FONT
     FT_Face font{};
+#endif
 
     OrbisCameraExposureGain exposure_gain{};
 

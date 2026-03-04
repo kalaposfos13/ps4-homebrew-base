@@ -3,7 +3,7 @@
 #include <orbis/libkernel.h>
 #include <stdint.h>
 
-#define GRAPHICS_USES_FONT 1
+// #define GRAPHICS_USES_FONT 1
 
 #ifndef GRAPHICS_H
 #define GRAPHICS_H

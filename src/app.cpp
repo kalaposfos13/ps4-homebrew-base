@@ -1,5 +1,10 @@
 #include "app.h"
 
+#include <filesystem>
+#include <fstream>
+
+const char* dump_path = "/data/homebrew/frame_dump.bin";
+
 static inline uint32_t YUVtoRGBA(uint8_t y, uint8_t u, uint8_t v) {
     int c = (int)y - 16;
     int d = (int)u - 128;
@@ -139,10 +144,12 @@ App::App() {
     scene = new Scene2D(1920, 1080, 4);
     ASSERT_MSG(scene->Init(0xC000000, 2), "Failed to initialize 2D scene");
 
+#ifdef GRAPHICS_USES_FONT
     std::string font_path =
         fmt::format("/{}/common/font/DFHEI5-SONY.ttf", sceKernelGetFsSandboxRandomWord());
     ASSERT_MSG(scene->InitFont(&font, font_path.c_str(), 40) && font != nullptr,
                "Failed to init font");
+#endif
 }
 
 App::~App() {
@@ -188,6 +195,13 @@ void App::InitCamera() {
     frame_data.meta.exposureGain[1].exposureControl = 0;
 
     sceCameraGetExposureGain(camera_handle, 1, &exposuregain, nullptr);
+
+    if (use_dumped_frame) {
+        dumped_frame_buf = (void*)alloc_memory(1280 * 800 * 2, 0, ORBIS_KERNEL_WC_GARLIC,
+                                   MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
+        std::ifstream is(dump_path, std::ios::binary);
+        is.read(reinterpret_cast<char*>(dumped_frame_buf), 1280 * 800 * 2);
+    }
 }
 
 void App::InitPadTracker() {
@@ -257,6 +271,8 @@ void App::InitMoveTracker() {
     ASSERT_OK(sceMoveTrackerInit(mt_onion, mt_garlic, 0, 1));
 }
 
+static bool dump_next_camera_frame = false;
+
 bool App::UpdateCamera() {
     if (sceCameraGetFrameData(camera_handle, &frame_data) != ORBIS_OK) {
         sceKernelUsleep(10000);
@@ -265,12 +281,24 @@ bool App::UpdateCamera() {
     if (!sceCameraIsValidFrameData(camera_handle, &frame_data)) {
         return false;
     }
+    if (dump_next_camera_frame) {
+        dump_next_camera_frame = false;
+        LOG_NOTIFICATION("Dumping frame...");
+        std::ofstream os(dump_path, std::ios::binary | std::ios::out);
+        os.write(reinterpret_cast<char const*>(frame_data.frame_ptr_list[0][0]),
+                 frame_data.frame_size[0][0]);
+    }
     return true;
 }
 
 void App::UpdatePadTracker() {
-    pt_input.images[0].data = frame_data.frame_ptr_list[0][0];
-    pt_input.images[1].data = frame_data.frame_ptr_list[1][0];
+    if (use_dumped_frame) {
+        pt_input.images[0].data = dumped_frame_buf;
+        pt_input.images[1].data = dumped_frame_buf;
+    } else {
+        pt_input.images[0].data = frame_data.frame_ptr_list[0][0];
+        pt_input.images[1].data = frame_data.frame_ptr_list[1][0];
+    }
 
     ASSERT_OK(scePadTrackerUpdate(pt_input));
     scePadTrackerReadState(pad_handle, &pt_output);
@@ -322,13 +350,23 @@ bool App::HandleInput() {
     if ((pdata.buttons & OrbisPadButton::ORBIS_PAD_BUTTON_CIRCLE) != 0) {
         return false;
     }
+    static bool sq_pressed = false;
     if ((pdata.buttons & OrbisPadButton::ORBIS_PAD_BUTTON_SQUARE) != 0) {
-        if (!state.sq_pressed) {
+        if (!sq_pressed) {
             state.eye = 1 - state.eye;
-            state.sq_pressed = true;
+            sq_pressed = true;
         }
     } else {
-        state.sq_pressed = false;
+        sq_pressed = false;
+    }
+    static bool triangle_pressed = false;
+    if ((pdata.buttons & OrbisPadButton::ORBIS_PAD_BUTTON_TRIANGLE) != 0) {
+        if (!triangle_pressed) {
+            dump_next_camera_frame = true;
+            triangle_pressed = true;
+        }
+    } else {
+        triangle_pressed = false;
     }
     return true;
 }
@@ -345,6 +383,10 @@ void App::FrameEnd() {
 }
 
 void App::DrawCameraImage() {
+    if (use_dumped_frame) {
+        DrawRAW16Frame(scene, dumped_frame_buf, 1280, 800);
+        return;
+    }
     switch (frame_data.meta.format[state.eye][0]) {
     case ORBIS_CAMERA_FORMAT_YUV422:
         DrawYUV422Frame(scene, frame_data.frame_ptr_list[state.eye][0], 1280, 800);
@@ -380,6 +422,7 @@ void App::DrawMoveTrackerResult() {
         LOG_INFO("x: {}, y: {}, z: {}", mt_state.position.x, mt_state.position.y,
                  mt_state.position.z);
     }
+#ifdef GRAPHICS_USES_FONT
     std::string pos_text =
         fmt::format("x: {:+07.3f}\ny: {:+07.3f}\nz: {:+07.3f}", mt_state.position.x,
                     mt_state.position.y, mt_state.position.z);
@@ -393,6 +436,7 @@ void App::DrawMoveTrackerResult() {
     std::string accel_text =
         fmt::format("dx: {:+07.3f}\ndy: {:+07.3f}\ndz: {:+07.3f}", acc.x, acc.y, acc.z);
     scene->DrawText(accel_text.c_str(), font, 400, 850, {0, 0, 0}, {255, 255, 255});
+#endif
 }
 
 void App::DrawLoadingFrame() {
