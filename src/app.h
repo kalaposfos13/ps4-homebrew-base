@@ -31,7 +31,7 @@ enum Status : u32 {
 
 struct AppState {
     s32 eye = 0;
-    Status pt_status[ORBIS_CAMERA_MAX_DEVICE_NUM] = {Status::Error, Status::Error};
+    Status pt_status[ORBIS_CAMERA_MAX_DEVICE_NUM] = {Status::Calibrating, Status::Calibrating};
     Status mt_status = Status::Error;
 };
 
@@ -54,7 +54,7 @@ public:
     void DrawLoadingFrame();
 
     bool use_dumped_frame = false;
-    void* dumped_frame_buf{};
+    void* dumped_frame_buf[2]{};
 
     s32 user_id{};
     s32 camera_handle{};

@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <fstream>
 
-const char* dump_path = "/data/homebrew/frame_dump.bin";
+const char* dump_path[2] = {"/data/homebrew/frame_dump1.bin", "/data/homebrew/frame_dump2.bin"};
 
 static inline uint32_t YUVtoRGBA(uint8_t y, uint8_t u, uint8_t v) {
     int c = (int)y - 16;
@@ -197,10 +197,15 @@ void App::InitCamera() {
     sceCameraGetExposureGain(camera_handle, 1, &exposuregain, nullptr);
 
     if (use_dumped_frame) {
-        dumped_frame_buf = (void*)alloc_memory(1280 * 800 * 2, 0, ORBIS_KERNEL_WC_GARLIC,
-                                   MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
-        std::ifstream is(dump_path, std::ios::binary);
-        is.read(reinterpret_cast<char*>(dumped_frame_buf), 1280 * 800 * 2);
+        dumped_frame_buf[0] = (void*)alloc_memory(1280 * 800 * 2, 0, ORBIS_KERNEL_WB_ONION,
+                                                  MemoryProt::CpuReadWrite | MemoryProt::GpuRead);
+        std::ifstream is1(dump_path[0], std::ios::binary);
+        is1.read(reinterpret_cast<char*>(dumped_frame_buf[0]), 1280 * 800 * 2);
+
+        dumped_frame_buf[1] = (void*)alloc_memory(1280 * 800 * 2, 0, ORBIS_KERNEL_WB_ONION,
+                                                  MemoryProt::CpuReadWrite | MemoryProt::GpuRead);
+        std::ifstream is2(dump_path[1], std::ios::binary);
+        is2.read(reinterpret_cast<char*>(dumped_frame_buf[1]), 1280 * 800 * 2);
     }
 }
 
@@ -271,7 +276,7 @@ void App::InitMoveTracker() {
     ASSERT_OK(sceMoveTrackerInit(mt_onion, mt_garlic, 0, 1));
 }
 
-static bool dump_next_camera_frame = false;
+static int dump_next_camera_frame_id = -1;
 
 bool App::UpdateCamera() {
     if (sceCameraGetFrameData(camera_handle, &frame_data) != ORBIS_OK) {
@@ -281,20 +286,22 @@ bool App::UpdateCamera() {
     if (!sceCameraIsValidFrameData(camera_handle, &frame_data)) {
         return false;
     }
-    if (dump_next_camera_frame) {
-        dump_next_camera_frame = false;
-        LOG_NOTIFICATION("Dumping frame...");
-        std::ofstream os(dump_path, std::ios::binary | std::ios::out);
+    if (dump_next_camera_frame_id >= 0) {
+        LOG_NOTIFICATION("Dumping frame {}...", dump_next_camera_frame_id);
+        std::ofstream os(dump_path[dump_next_camera_frame_id], std::ios::binary | std::ios::out);
         os.write(reinterpret_cast<char const*>(frame_data.frame_ptr_list[0][0]),
                  frame_data.frame_size[0][0]);
+        dump_next_camera_frame_id = -1;
     }
     return true;
 }
 
 void App::UpdatePadTracker() {
     if (use_dumped_frame) {
-        pt_input.images[0].data = dumped_frame_buf;
-        pt_input.images[1].data = dumped_frame_buf;
+        void* fb =
+            state.pt_status[0] == Status::Calibrating ? dumped_frame_buf[0] : dumped_frame_buf[1];
+        pt_input.images[0].data = fb;
+        pt_input.images[1].data = fb;
     } else {
         pt_input.images[0].data = frame_data.frame_ptr_list[0][0];
         pt_input.images[1].data = frame_data.frame_ptr_list[1][0];
@@ -359,14 +366,23 @@ bool App::HandleInput() {
     } else {
         sq_pressed = false;
     }
-    static bool triangle_pressed = false;
-    if ((pdata.buttons & OrbisPadButton::ORBIS_PAD_BUTTON_TRIANGLE) != 0) {
-        if (!triangle_pressed) {
-            dump_next_camera_frame = true;
-            triangle_pressed = true;
+    static bool left_pressed = false;
+    if ((pdata.buttons & OrbisPadButton::ORBIS_PAD_BUTTON_LEFT) != 0) {
+        if (!left_pressed) {
+            dump_next_camera_frame_id = 0;
+            left_pressed = true;
         }
     } else {
-        triangle_pressed = false;
+        left_pressed = false;
+    }
+    static bool right_pressed = false;
+    if ((pdata.buttons & OrbisPadButton::ORBIS_PAD_BUTTON_RIGHT) != 0) {
+        if (!right_pressed) {
+            dump_next_camera_frame_id = 1;
+            right_pressed = true;
+        }
+    } else {
+        right_pressed = false;
     }
     return true;
 }
@@ -384,7 +400,8 @@ void App::FrameEnd() {
 
 void App::DrawCameraImage() {
     if (use_dumped_frame) {
-        DrawRAW16Frame(scene, dumped_frame_buf, 1280, 800);
+        DrawRAW16Frame(scene, dumped_frame_buf[state.pt_status[0] == Status::Calibrating ? 0 : 1],
+                       1280, 800);
         return;
     }
     switch (frame_data.meta.format[state.eye][0]) {
