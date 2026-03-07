@@ -11,62 +11,79 @@
 #include "signal_handler.h"
 #include "types.h"
 
-#define MAP_VOID 0x100
+#include <atomic>
 
-extern "C" int sceKernelInstallExceptionHandler(s32 sig_num, void (*handler)(int, void*));
-extern "C" int sceKernelRemoveExceptionHandler(s32 sig_num);
-extern "C" int sceKernelPrintBacktraceWithModuleInfo(char const* message);
+std::atomic<s32> test_value = -1;
 
-void swap_handler(int sig, void* raw_context) {
-    auto& mctx = ((Orbis::Ucontext*)raw_context)->uc_mcontext;
-    auto const addr = mctx.mc_addr;
-    LOG_INFO("addr: {:#x}", addr);
-    if(addr < 1000) {
-        // nullptr deref
-        LOG_INFO("caller addr: {:#x}", mctx.mc_rip);
-        sceKernelPrintBacktraceWithModuleInfo("message");
-        sceSystemServiceLoadExec("exit", nullptr);
-        return;
+void dummy_handler(int s) {
+    LOG_INFO("Successfully caught signal {}", s);
+    test_value = s;
+}
+
+void* dummy_thread_func(void*) {
+    sceKernelSleep(1);
+    return nullptr;
+}
+extern "C" int pthread_create_name_np(pthread_t* thread, const pthread_attr_t* attr,
+                                      void* (*start_routine)(void*), void* arg, const char* name);
+
+bool test_signal_availibility(s32 sig) {
+    test_value = -1;
+    struct sigaction act = {};
+    act.sa_flags = SA_SIGINFO | SA_RESTART;
+    act.sa_sigaction = reinterpret_cast<decltype(act.sa_sigaction)>(dummy_handler);
+    sigemptyset(&act.sa_mask);
+    s32 ret = sigaction(sig, &act, nullptr);
+    if (ret < 0) {
+        LOG_ERROR("Failed to add handler for signal {}: {}", sig, strerror(errno));
+        return false;
     }
-    
-    void* aligned_addr = (void*)((uintptr_t(addr)) & ~0xfff);
-    void* res =
-        mmap(aligned_addr, 4096, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_ANON | MAP_PRIVATE, -1, 0);
-    if (res == MAP_FAILED) {
-        LOG_INFO("mmap returned {} {}", errno, strerror(errno));
+
+    pthread_t test_thread{};
+    ret = pthread_create_name_np(&test_thread, nullptr, dummy_thread_func, nullptr,
+                                 fmt::format("Test Thread {}", sig).c_str());
+    if (ret < 0) {
+        LOG_ERROR("Failed to spawn test thread: {}", sig, strerror(errno));
+        return false;
+    }
+    ret = pthread_kill(test_thread, sig);
+    if (ret < 0) {
+        LOG_ERROR("Failed to send signal to test thread: {}", sig, strerror(errno));
+        return false;
+    }
+
+    sceKernelUsleep(1000);
+
+    struct sigaction act1 = {};
+    act1.sa_flags = SA_SIGINFO | SA_RESTART;
+    act1.sa_sigaction = nullptr;
+    sigemptyset(&act1.sa_mask);
+    ret = sigaction(sig, &act1, nullptr);
+    if (ret < 0) {
+        LOG_ERROR("Failed to remove handler for signal {}: {}", sig, strerror(errno));
+        return false;
+    }
+    if (test_value == sig) {
+        LOG_INFO("Test successful for signal {}.", sig);
+        return true;
+    } else {
+        LOG_INFO("Test failed for signal {}, test value is {}.", sig, (s32)test_value);
+        return false;
     }
 }
 
 int main(int argc, char* argv[]) {
-    size_t len = 16_GB;
-    void* addr = mmap(nullptr, len, PROT_READ | PROT_WRITE, MAP_VOID | MAP_PRIVATE, -1, 0);
-    ASSERT(addr != MAP_FAILED);
-    LOG_INFO("base: {}", fmt::ptr(addr));
+    LOG_INFO("Starting test");
 
-    sceKernelInstallExceptionHandler(SIGSEGV, &swap_handler);
+    // test_signal_availibility(128);
 
-    {
-        LOG_INFO("Testing mapping on-demand");
-        uint8_t volatile* addr_u8 = (uint8_t volatile*)addr;
-
-        ASSERT(addr_u8[0] == 0);
-        addr_u8[0] = 1;
-        ASSERT(addr_u8[0] == 1);
-
-        addr_u8[4096] = 2;
-        ASSERT(addr_u8[4096] == 2);
-        ASSERT(addr_u8[0] == 1);
+    int test_count = 35, successes = 0;
+    for (int i = 0; i < test_count; i++) {
+        LOG_INFO("Testing signal {}", i);
+        successes += test_signal_availibility(i) ? 1 : 0;
+        // sceKernelUsleep(1000 * 1000 * 10);
     }
-    {
-        LOG_INFO("Testing nullptr deref");
-        int* test = nullptr;
-        *test = 1;
-    }
-
-    munmap(addr, len);
-
-    // optional
-    sceKernelRemoveExceptionHandler(SIGSEGV);
+    LOG_INFO("{}/{} tests successful.", successes, test_count);
 
     LOG_INFO("Exiting");
     sceSystemServiceLoadExec("exit", nullptr);
