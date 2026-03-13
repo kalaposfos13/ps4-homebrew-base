@@ -322,7 +322,7 @@ bool App::HandleControllerInput() {
     if (is_button_pressed(OrbisPadButton::ORBIS_PAD_BUTTON_RIGHT)) {
         dump_next_camera_frame_id = 1;
     }
-    if (is_button_pressed(OrbisPadButton::ORBIS_PAD_BUTTON_R1)) {
+    if (is_button_pressed(OrbisPadButton::ORBIS_PAD_BUTTON_L1)) {
         s32 r = rand() % 8;
         move_ball_colour.r = (r & 0b100) ? 255 : 0;
         move_ball_colour.g = (r & 0b010) ? 255 : 0;
@@ -330,6 +330,7 @@ bool App::HandleControllerInput() {
         sceMoveSetLightSphere(move_handle, move_ball_colour.r, move_ball_colour.g,
                               move_ball_colour.b);
     }
+    sceMoveSetVibration(move_handle, pdata.analogButtons.l2);
 
     return true;
 }
