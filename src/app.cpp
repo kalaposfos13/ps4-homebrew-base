@@ -412,10 +412,11 @@ void App::DrawMoveResult() {
     auto& b = md.button_data.button_data;
     using OMB = OrbisMoveButtonDataOffset;
     s32 fill = int((float)md.button_data.trigger_data / 255.f * 75.f);
+    auto& bc = move_ball_colour;
 #define PRESSED(btn) (b & OrbisMoveButtonDataOffset::btn) != 0
     // clang-format off
     draw_centered_box(  0,  100, 150,  500, black,  false);             // body
-    draw_centered_box(  0, -250, 170,  170,  cyan,  false);             // ball
+    draw_centered_box(  0, -250, 170,  170,    bc,  false);             // ball
     draw_centered_box(-90,  -80,  20,   60, black,  PRESSED(Select));   // share
     draw_centered_box( 90,  -80,  20,   60, black,  PRESSED(Start));    // options
     draw_centered_box(  0,  -50,  34,   80, black,  PRESSED(Move));     // move
