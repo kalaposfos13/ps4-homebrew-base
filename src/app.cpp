@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <map>
 
 const char* dump_path[2] = {"/data/homebrew/frame_dump1.bin", "/data/homebrew/frame_dump2.bin"};
 
@@ -297,33 +298,39 @@ bool App::HandleControllerInput() {
     if ((pdata.buttons & OrbisPadButton::ORBIS_PAD_BUTTON_CIRCLE) != 0) {
         return false;
     }
-    static bool sq_pressed = false;
-    if ((pdata.buttons & OrbisPadButton::ORBIS_PAD_BUTTON_SQUARE) != 0) {
-        if (!sq_pressed) {
-            state.eye = 1 - state.eye;
-            sq_pressed = true;
+    static std::map<OrbisPadButton, bool> btn_pressed{};
+    auto is_button_pressed = [&, this](OrbisPadButton b) {
+        if (!btn_pressed.contains(b)) {
+            btn_pressed[b] = false;
         }
-    } else {
-        sq_pressed = false;
-    }
-    static bool left_pressed = false;
-    if ((pdata.buttons & OrbisPadButton::ORBIS_PAD_BUTTON_LEFT) != 0) {
-        if (!left_pressed) {
-            dump_next_camera_frame_id = 0;
-            left_pressed = true;
+        if ((pdata.buttons & b) != 0) {
+            if (!btn_pressed[b]) {
+                btn_pressed[b] = true;
+                return true;
+            }
+        } else {
+            btn_pressed[b] = false;
         }
-    } else {
-        left_pressed = false;
+        return false;
+    };
+    if (is_button_pressed(OrbisPadButton::ORBIS_PAD_BUTTON_SQUARE)) {
+        state.eye = 1 - state.eye;
     }
-    static bool right_pressed = false;
-    if ((pdata.buttons & OrbisPadButton::ORBIS_PAD_BUTTON_RIGHT) != 0) {
-        if (!right_pressed) {
-            dump_next_camera_frame_id = 1;
-            right_pressed = true;
-        }
-    } else {
-        right_pressed = false;
+    if (is_button_pressed(OrbisPadButton::ORBIS_PAD_BUTTON_LEFT)) {
+        dump_next_camera_frame_id = 0;
     }
+    if (is_button_pressed(OrbisPadButton::ORBIS_PAD_BUTTON_RIGHT)) {
+        dump_next_camera_frame_id = 1;
+    }
+    if (is_button_pressed(OrbisPadButton::ORBIS_PAD_BUTTON_R1)) {
+        s32 r = rand() % 8;
+        move_ball_colour.r = (r & 0b100) ? 255 : 0;
+        move_ball_colour.g = (r & 0b010) ? 255 : 0;
+        move_ball_colour.b = (r & 0b001) ? 255 : 0;
+        sceMoveSetLightSphere(move_handle, move_ball_colour.r, move_ball_colour.g,
+                              move_ball_colour.b);
+    }
+
     return true;
 }
 
@@ -365,6 +372,7 @@ void App::DrawCameraImage() {
 void App::InitMove() {
     ASSERT_OK(sceMoveInit());
     move_handle = sceMoveOpen(user_id, /*standard*/ 0, 0);
+    sceMoveSetLightSphere(move_handle, move_ball_colour.r, move_ball_colour.g, move_ball_colour.b);
 }
 
 void App::UpdateMove() {
@@ -402,21 +410,22 @@ void App::DrawMoveResult() {
     };
     auto& b = md.button_data.button_data;
     using OMB = OrbisMoveButtonDataOffset;
+    s32 fill = int((float)md.button_data.trigger_data / 255.f * 75.f);
 #define PRESSED(btn) (b & OrbisMoveButtonDataOffset::btn) != 0
     // clang-format off
-    draw_centered_box(   0,  100,  150,  500, black,  false); // body
-    draw_centered_box(   0, -250,  170,  170,  cyan,  false);  // ball
-    draw_centered_box( -90,  -80,   20,   60, black,  PRESSED(Select));  // share
-    draw_centered_box(  90,  -80,   20,   60, black,  PRESSED(Start));  // options
-    draw_centered_box(   0,  -50,   34,   80, black,  PRESSED(Move));  // move
-    draw_centered_box(   0,   30,   34,   34, black,  false);  // ps
-    draw_centered_box(   0,  100,   20,   75, black,  false);  // t frame
-    draw_centered_box(   0,  100,   20,   int((float)md.button_data.trigger_data / 255.f * 75.f), white,  false);  // t fill
-    draw_centered_box( -40,  -30,   20,   20,  blue,  PRESSED(Cross));  // x
-    draw_centered_box( -40,  -70,   20,   20,  pink,  PRESSED(Square));  // []
-    draw_centered_box(  40,  -30,   20,   20,   red,  PRESSED(Circle));  // o
-    draw_centered_box(  40,  -70,   20,   20, green,  PRESSED(Triangle));  // ^
-    draw_centered_box(   0,  300,   20,   10,   red,  false);  // power
+    draw_centered_box(  0,  100, 150,  500, black,  false);             // body
+    draw_centered_box(  0, -250, 170,  170,  cyan,  false);             // ball
+    draw_centered_box(-90,  -80,  20,   60, black,  PRESSED(Select));   // share
+    draw_centered_box( 90,  -80,  20,   60, black,  PRESSED(Start));    // options
+    draw_centered_box(  0,  -50,  34,   80, black,  PRESSED(Move));     // move
+    draw_centered_box(  0,   30,  34,   34, black,  false);             // ps
+    draw_centered_box(  0,  100,  20,   75, black,  false);             // t frame
+    draw_centered_box(  0,  100,  20, fill, white,  false);             // t fill
+    draw_centered_box(-40,  -30,  20,   20,  blue,  PRESSED(Cross));    // x
+    draw_centered_box(-40,  -70,  20,   20,  pink,  PRESSED(Square));   // []
+    draw_centered_box( 40,  -30,  20,   20,   red,  PRESSED(Circle));   // o
+    draw_centered_box( 40,  -70,  20,   20, green,  PRESSED(Triangle)); // ^
+    draw_centered_box(  0,  300,  20,   10,   red,  false);             // power
     // clang-format on
 }
 

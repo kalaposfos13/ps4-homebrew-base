@@ -41,6 +41,7 @@ struct OrbisMoveData {
 s32 sceMoveInit();
 s32 sceMoveOpen(OrbisUserServiceUserId userId, s32 type, s32 index);
 s32 sceMoveReadStateLatest(s32 handle, OrbisMoveData* pData);
+s32 sceMoveSetLightSphere(s32 handle, u8 r, u8 g, u8 b);
 
 // movetracker
 

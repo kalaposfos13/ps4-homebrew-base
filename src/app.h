@@ -69,6 +69,7 @@ public:
     OrbisPadData pdata{};
 
     OrbisMoveData m_data[ORBIS_MOVE_MAX_CONTROLLERS]{};
+    Color move_ball_colour{0, 0, 255};
 
     OrbisCameraFrameData frame_data{};
     OrbisCameraExposureGain exposuregain{};
