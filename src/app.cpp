@@ -406,7 +406,10 @@ void App::DrawMoveResult() {
     constexpr Color cyan = {64, 128, 255};
 
     auto draw_centered_box = [&, this](s32 x, s32 y, s32 w, s32 h, Color c, bool pressed) {
-        scene->DrawRectangleWithBorder(1280 + 320 + x - (w / 2), 400 + y - (h / 2), w, h,
+        s32 amp = pdata.analogButtons.l2 >> 6;
+        s32 vx = (rand() % (2 * amp + 1)) - amp;
+        s32 vy = (rand() % (2 * amp + 1)) - amp;
+        scene->DrawRectangleWithBorder(1280 + 320 + x - (w / 2) + vx, 400 + y - (h / 2) + vy, w, h,
                                        pressed ? light_gray : c, 3, white);
     };
     auto& b = md.button_data.button_data;
@@ -429,6 +432,7 @@ void App::DrawMoveResult() {
     draw_centered_box( 40,  -70,  20,   20, green,  PRESSED(Triangle)); // ^
     draw_centered_box(  0,  300,  20,   10,   red,  false);             // power
     // clang-format on
+#undef PRESSED
 }
 
 void App::DrawMoveTrackerResult() {
