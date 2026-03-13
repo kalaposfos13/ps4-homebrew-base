@@ -160,11 +160,7 @@ App::~App() {
 
 void App::InitCamera() {
     if (sceCameraIsAttached(0) != 1) {
-        LOG_NOTIFICATION("Please connect the PlayStation Camera.");
-    }
-    while (sceCameraIsAttached(0) != 1) {
-        LOG_INFO("Please connect the PlayStation Camera.");
-        sceKernelSleep(1);
+        return;
     }
 
     ASSERT_NO_ERROR(camera_handle =
@@ -247,6 +243,10 @@ void App::InitMoveTracker() {
 static int dump_next_camera_frame_id = -1;
 
 bool App::UpdateCamera() {
+    if (camera_handle == 0) {
+        InitCamera();
+        return false;
+    }
     if (sceCameraGetFrameData(camera_handle, &frame_data) != ORBIS_OK) {
         sceKernelUsleep(10000);
         return false;
@@ -337,6 +337,10 @@ void App::FrameEnd() {
 }
 
 void App::DrawCameraImage() {
+    if (camera_handle == 0) {
+        scene->DrawRectangle(0, 0, 1280, 800, {0, 0, 0});
+        return;
+    }
     if (use_dumped_frame) {
         DrawRAW16Frame(scene, dumped_frame_buf[state.mt_status == Status::Calibrating ? 0 : 1],
                        1280, 800);
@@ -365,6 +369,18 @@ void App::UpdateMove() {
     ASSERT_NO_ERROR(sceMoveReadStateLatest(move_handle, m_data));
 }
 
+enum OrbisMoveButtonDataOffset : u16 {
+    Select = (1 << 0),
+    T = (1 << 1),
+    Move = (1 << 2),
+    Start = (1 << 3),
+    Triangle = (1 << 4),
+    Circle = (1 << 5),
+    Cross = (1 << 6),
+    Square = (1 << 7),
+    Intercepted = (1 << 15),
+};
+
 void App::DrawMoveResult() {
     auto const& md = m_data[0];
     // LOG_INFO("b: {:016b} t: {:03}", md.button_data.button_data, md.button_data.trigger_data);
@@ -382,19 +398,22 @@ void App::DrawMoveResult() {
         scene->DrawRectangleWithBorder(1280 + 320 + x - (w / 2), 400 + y - (h / 2), w, h,
                                        pressed ? light_gray : c, 3, white);
     };
+    auto& b = md.button_data.button_data;
+    using OMB = OrbisMoveButtonDataOffset;
+#define PRESSED(btn) (b & OrbisMoveButtonDataOffset::btn) != 0
     // clang-format off
-    draw_centered_box(   0,  100,  150,  500, black, false); // body
+    draw_centered_box(   0,  100,  150,  500, black,  false); // body
     draw_centered_box(   0, -250,  170,  170,  cyan,  false);  // ball
-    draw_centered_box( -90,  -80,   20,   60, black,  false);  // share
-    draw_centered_box(  90,  -80,   20,   60, black,  false);  // options
-    draw_centered_box(   0,  -50,   34,   80, black,  false);  // move
+    draw_centered_box( -90,  -80,   20,   60, black,  PRESSED(Select));  // share
+    draw_centered_box(  90,  -80,   20,   60, black,  PRESSED(Start));  // options
+    draw_centered_box(   0,  -50,   34,   80, black,  PRESSED(Move));  // move
     draw_centered_box(   0,   30,   34,   34, black,  false);  // ps
     draw_centered_box(   0,  100,   20,   75, black,  false);  // t frame
-    draw_centered_box(   0,  100,   20,   40, white,  false);  // t fill
-    draw_centered_box( -40,  -30,   20,   20,  blue,  false);  // x
-    draw_centered_box( -40,  -70,   20,   20,  pink,  false);  // []
-    draw_centered_box(  40,  -30,   20,   20,   red,  false);  // o
-    draw_centered_box(  40,  -70,   20,   20, green,  false);  // ^
+    draw_centered_box(   0,  100,   20,   int((float)md.button_data.trigger_data / 255.f * 75.f), white,  false);  // t fill
+    draw_centered_box( -40,  -30,   20,   20,  blue,  PRESSED(Cross));  // x
+    draw_centered_box( -40,  -70,   20,   20,  pink,  PRESSED(Square));  // []
+    draw_centered_box(  40,  -30,   20,   20,   red,  PRESSED(Circle));  // o
+    draw_centered_box(  40,  -70,   20,   20, green,  PRESSED(Triangle));  // ^
     draw_centered_box(   0,  300,   20,   10,   red,  false);  // power
     // clang-format on
 }

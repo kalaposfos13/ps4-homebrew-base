@@ -11,7 +11,7 @@ int main(void) {
 
     while (app.HandleControllerInput()) {
         if (!app.UpdateCamera()) {
-            continue;
+            // continue;
         }
         app.UpdateMove();
         app.UpdateMoveTracker();
