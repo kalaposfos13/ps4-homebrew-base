@@ -2,21 +2,23 @@
 
 int main(void) {
     App app{};
-    app.use_dumped_frame = true;
-    app.InitCamera();
-    app.InitPadTracker();
-    // app.InitMoveTracker();
+    app.use_dumped_frame = false;
+    app.use_tracking = false;
 
-    while (app.HandleInput()) {
+    app.InitCamera();
+    app.InitMove();
+    app.InitMoveTracker();
+
+    while (app.HandleControllerInput()) {
         if (!app.UpdateCamera()) {
             continue;
         }
-        app.UpdatePadTracker();
-        // app.UpdateMoveTracker();
+        app.UpdateMove();
+        app.UpdateMoveTracker();
         app.FrameStart();
         app.DrawCameraImage();
-        app.DrawPadTrackerResult();
-        // app.DrawMoveTrackerResult();
+        app.DrawMoveResult();
+        app.DrawMoveTrackerResult();
         app.FrameEnd();
     }
 }

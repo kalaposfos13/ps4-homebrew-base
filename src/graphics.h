@@ -64,8 +64,10 @@ public:
     void FrameBufferClear();
     void FrameBufferFill(Color color);
 
-    void DrawPixel(int x, int y, Color color);
-    void DrawRectangle(int x, int y, int w, int h, Color color);
+    void DrawPixel(int const x, int const y, Color const color);
+    void DrawRectangle(int const x, int const y, int const w, int const h, Color const color);
+    void DrawRectangleWithBorder(int const x, int const y, int const w, int const h,
+                                 Color const color, int const b_w, Color const b_color);
 
 #ifdef GRAPHICS_USES_FONT
     bool InitFont(FT_Face* face, const char* fontPath, int fontSize);

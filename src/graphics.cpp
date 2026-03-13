@@ -115,8 +115,8 @@ bool Scene2D::allocateVideoMem(size_t size, int alignment) {
     }
 
     // Map the direct memory
-    rc = sceKernelMapDirectMemory(&this->videoMem, this->directMemAllocationSize, 0x33,
-                                  0, this->directMemOff, alignment);
+    rc = sceKernelMapDirectMemory(&this->videoMem, this->directMemAllocationSize, 0x33, 0,
+                                  this->directMemOff, alignment);
 
     if (rc < 0) {
         sceKernelReleaseDirectMemory(this->directMemOff, this->directMemAllocationSize);
@@ -217,19 +217,54 @@ void Scene2D::FrameBufferFill(Color color) {
     DrawRectangle(0, 0, this->width, this->height, color);
 }
 
-void Scene2D::DrawPixel(int x, int y, Color color) {
+inline void Scene2D::DrawPixel(int const x, int const y, Color const color) {
 
     int pixel = (y * this->width) + x;
     uint32_t encodedColor = 0x80000000u | (color.r << 16) | (color.g << 8) | color.b;
     ((uint32_t*)this->frameBuffers[this->activeFrameBufferIdx])[pixel] = encodedColor;
 }
 
-void Scene2D::DrawRectangle(int x, int y, int w, int h, Color color) {
+void Scene2D::DrawRectangle(int const x, int const y, int const w, int const h, Color const color) {
     int xPos, yPos;
 
     // Draw row-by-row, column-by-column
     for (yPos = y; yPos < y + h; yPos++) {
         for (xPos = x; xPos < x + w; xPos++) {
+            DrawPixel(xPos, yPos, color);
+        }
+    }
+}
+
+void Scene2D::DrawRectangleWithBorder(int const x, int const y, int const w, int const h,
+                                      Color const color, int const b_w, Color const b_color) {
+    int xPos, yPos;
+    // top
+    for (yPos = y; yPos < y + b_w; yPos++) {
+        for (xPos = x; xPos < x + w; xPos++) {
+            DrawPixel(xPos, yPos, b_color);
+        }
+    }
+    // bottom
+    for (yPos = y + h - b_w; yPos < y + h; yPos++) {
+        for (xPos = x; xPos < x + w; xPos++) {
+            DrawPixel(xPos, yPos, b_color);
+        }
+    }
+    // left
+    for (yPos = y + b_w; yPos < y + h - b_w; yPos++) {
+        for (xPos = x; xPos < x + b_w; xPos++) {
+            DrawPixel(xPos, yPos, b_color);
+        }
+    }
+    // right
+    for (yPos = y + b_w; yPos < y + h - b_w; yPos++) {
+        for (xPos = x + w - b_w; xPos < x + w; xPos++) {
+            DrawPixel(xPos, yPos, b_color);
+        }
+    }
+    // center
+    for (yPos = y + b_w; yPos < y + h - b_w; yPos++) {
+        for (xPos = x + b_w; xPos < x + w - b_w; xPos++) {
             DrawPixel(xPos, yPos, color);
         }
     }

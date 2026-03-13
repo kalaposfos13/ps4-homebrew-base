@@ -129,7 +129,6 @@ static VAddr alloc_memory(size_t size, size_t alignment, u32 memType, u32 prot) 
 
 App::App() {
     sceSysmoduleLoadModule(ORBIS_SYSMODULE_MOVE);
-    sceSysmoduleLoadModule(ORBIS_SYSMODULE_PAD_TRACKER);
     sceSysmoduleLoadModule(ORBIS_SYSMODULE_MOVE_TRACKER);
 
     OrbisUserServiceInitializeParams param;
@@ -209,41 +208,10 @@ void App::InitCamera() {
     }
 }
 
-void App::InitPadTracker() {
-    LOG_INFO("Setting up pad tracker");
-    sceCameraGetExposureGain(camera_handle, 1, &exposuregain, nullptr);
-
-    pt_input.handles[0] = pad_handle;
-    pt_input.handles[1] = -1;
-    pt_input.handles[2] = -1;
-    pt_input.handles[3] = -1;
-
-    pt_input.images[0].exposure = exposuregain.exposure;
-    pt_input.images[0].gain = exposuregain.gain;
-    pt_input.images[0].width = 1280;
-    pt_input.images[0].height = 800;
-    pt_input.images[1].exposure = exposuregain.exposure;
-    pt_input.images[1].gain = exposuregain.gain;
-    pt_input.images[1].width = 1280;
-    pt_input.images[1].height = 800;
-
-    pt_input.images[0].data = nullptr;
-    pt_input.images[1].data = nullptr;
-
-    s32 pt_o_s, pt_g_s;
-    ASSERT_OK(scePadTrackerGetWorkingMemorySize(&pt_o_s, &pt_g_s));
-    ASSERT(pt_o_s > 0 && pt_g_s > 0);
-    LOG_INFO("needed onion size: {:#x}, needed garlic size: {:#x}", pt_o_s, pt_g_s);
-    VAddr pt_onion = alloc_memory(pt_o_s, 0, ORBIS_KERNEL_WB_ONION,
-                                  MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
-    VAddr pt_garlic = alloc_memory(pt_g_s, 0, ORBIS_KERNEL_WC_GARLIC,
-                                   MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
-    ASSERT_OK(scePadTrackerInit(pt_onion, pt_garlic, 0, 0));
-}
-
 void App::InitMoveTracker() {
-    ASSERT_OK(sceMoveInit());
-    move_handle = sceMoveOpen(user_id, /*standard*/ 0, 0);
+    if (!use_tracking) {
+        return;
+    }
 
     LOG_INFO("Setting up move tracker");
 
@@ -296,46 +264,16 @@ bool App::UpdateCamera() {
     return true;
 }
 
-void App::UpdatePadTracker() {
-    if (use_dumped_frame) {
-        void* fb =
-            state.pt_status[0] == Status::Calibrating ? dumped_frame_buf[0] : dumped_frame_buf[1];
-        pt_input.images[0].data = fb;
-        pt_input.images[1].data = fb;
-    } else {
-        pt_input.images[0].data = frame_data.frame_ptr_list[0][0];
-        pt_input.images[1].data = frame_data.frame_ptr_list[1][0];
-    }
-
-    ASSERT_OK(scePadTrackerUpdate(pt_input));
-    scePadTrackerReadState(pad_handle, &pt_output);
-    for (int i = 0; i < ORBIS_CAMERA_MAX_DEVICE_NUM; i++) {
-        switch (pt_output.imageCoordinates[i].status) {
-        case ORBIS_PAD_TRACKER_TRACKING:
-            state.pt_status[i] = Status::Tracking;
-            break;
-        case ORBIS_PAD_TRACKER_NOT_TRACKING:
-            state.pt_status[i] = Status::NotTracking;
-            break;
-        case ORBIS_PAD_TRACKER_CALIBRATING:
-            state.pt_status[i] = Status::Calibrating;
-            break;
-        default:
-            UNREACHABLE_MSG("pt_status: {}", (u32)pt_output.imageCoordinates[0].status);
-            state.pt_status[i] = Status::Error;
-        }
-    }
-}
-
 void App::UpdateMoveTracker() {
-    OrbisMoveData m_data[ORBIS_MOVE_MAX_CONTROLLERS];
+    if (!use_tracking) {
+        return;
+    }
     auto now = sceKernelGetProcessTime();
     mt_images[0].timestamp = now;
     mt_images[1].timestamp = now;
     mt_images[0].data = frame_data.frame_ptr_list[0][0];
     mt_images[1].data = frame_data.frame_ptr_list[1][0];
     ASSERT_OK(sceMoveTrackerCameraUpdate(mt_images, frame_data.meta.acceleration));
-    ASSERT_NO_ERROR(sceMoveReadStateLatest(move_handle, mt_controllers[0].data));
     ASSERT_OK(sceMoveTrackerControllersUpdate(mt_controllers));
     s32 get_state_status = 0;
     ASSERT_NO_ERROR(get_state_status = sceMoveTrackerGetState(move_handle, s64(-1), &mt_state));
@@ -352,7 +290,7 @@ void App::UpdateMoveTracker() {
     }
 }
 
-bool App::HandleInput() {
+bool App::HandleControllerInput() {
     scePadReadState(pad_handle, &pdata);
     if ((pdata.buttons & OrbisPadButton::ORBIS_PAD_BUTTON_CIRCLE) != 0) {
         return false;
@@ -400,7 +338,7 @@ void App::FrameEnd() {
 
 void App::DrawCameraImage() {
     if (use_dumped_frame) {
-        DrawRAW16Frame(scene, dumped_frame_buf[state.pt_status[0] == Status::Calibrating ? 0 : 1],
+        DrawRAW16Frame(scene, dumped_frame_buf[state.mt_status == Status::Calibrating ? 0 : 1],
                        1280, 800);
         return;
     }
@@ -418,23 +356,53 @@ void App::DrawCameraImage() {
     }
 }
 
-void App::DrawPadTrackerResult() {
-    if (state.pt_status[state.eye] == Status::Tracking) {
-        scene->DrawRectangle((pt_output.imageCoordinates[state.eye].x * 1280) - 0,
-                             (pt_output.imageCoordinates[state.eye].y * 800) - 0, 10, 10,
-                             {255, 0, 0});
-    }
-    if (state.pt_status[1 - state.eye] == Status::Tracking) {
-        scene->DrawRectangle((pt_output.imageCoordinates[1 - state.eye].x * 1280) - 0,
-                             (pt_output.imageCoordinates[1 - state.eye].y * 800) - 0, 10, 10,
-                             {0, 255, 0});
-    }
-    if (state.pt_status[state.eye] == Status::Calibrating) {
-        DrawLoadingFrame();
-    }
+void App::InitMove() {
+    ASSERT_OK(sceMoveInit());
+    move_handle = sceMoveOpen(user_id, /*standard*/ 0, 0);
+}
+
+void App::UpdateMove() {
+    ASSERT_NO_ERROR(sceMoveReadStateLatest(move_handle, m_data));
+}
+
+void App::DrawMoveResult() {
+    auto const& md = m_data[0];
+    // LOG_INFO("b: {:016b} t: {:03}", md.button_data.button_data, md.button_data.trigger_data);
+
+    constexpr Color black = {0, 0, 0};
+    constexpr Color white = {255, 255, 255};
+    constexpr Color light_gray = {200, 200, 200};
+    constexpr Color red = {255, 0, 0};
+    constexpr Color green = {0, 255, 0};
+    constexpr Color blue = {0, 0, 255};
+    constexpr Color pink = {255, 105, 180};
+    constexpr Color cyan = {64, 128, 255};
+
+    auto draw_centered_box = [&, this](s32 x, s32 y, s32 w, s32 h, Color c, bool pressed) {
+        scene->DrawRectangleWithBorder(1280 + 320 + x - (w / 2), 400 + y - (h / 2), w, h,
+                                       pressed ? light_gray : c, 3, white);
+    };
+    // clang-format off
+    draw_centered_box(   0,  100,  150,  500, black, false); // body
+    draw_centered_box(   0, -250,  170,  170,  cyan,  false);  // ball
+    draw_centered_box( -90,  -80,   20,   60, black,  false);  // share
+    draw_centered_box(  90,  -80,   20,   60, black,  false);  // options
+    draw_centered_box(   0,  -50,   34,   80, black,  false);  // move
+    draw_centered_box(   0,   30,   34,   34, black,  false);  // ps
+    draw_centered_box(   0,  100,   20,   75, black,  false);  // t frame
+    draw_centered_box(   0,  100,   20,   40, white,  false);  // t fill
+    draw_centered_box( -40,  -30,   20,   20,  blue,  false);  // x
+    draw_centered_box( -40,  -70,   20,   20,  pink,  false);  // []
+    draw_centered_box(  40,  -30,   20,   20,   red,  false);  // o
+    draw_centered_box(  40,  -70,   20,   20, green,  false);  // ^
+    draw_centered_box(   0,  300,   20,   10,   red,  false);  // power
+    // clang-format on
 }
 
 void App::DrawMoveTrackerResult() {
+    if (!use_tracking) {
+        return;
+    }
     if (state.mt_status == Status::Tracking) {
         LOG_INFO("x: {}, y: {}, z: {}", mt_state.position.x, mt_state.position.y,
                  mt_state.position.z);
@@ -456,7 +424,7 @@ void App::DrawMoveTrackerResult() {
 #endif
 }
 
-void App::DrawLoadingFrame() {
+void App::DrawLoadingOverlay() {
     scene->DrawRectangle(400 + 000, 375, 50, 50, {255, 255, 255});
     scene->DrawRectangle(400 + 200, 375, 50, 50, {255, 255, 255});
     scene->DrawRectangle(400 + 400, 375, 50, 50, {255, 255, 255});

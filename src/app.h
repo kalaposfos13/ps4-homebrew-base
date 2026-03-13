@@ -31,7 +31,6 @@ enum Status : u32 {
 
 struct AppState {
     s32 eye = 0;
-    Status pt_status[ORBIS_CAMERA_MAX_DEVICE_NUM] = {Status::Calibrating, Status::Calibrating};
     Status mt_status = Status::Error;
 };
 
@@ -39,21 +38,26 @@ class App {
 public:
     App();
     ~App();
+
     void InitCamera();
-    void InitPadTracker();
-    void InitMoveTracker();
     bool UpdateCamera();
-    void UpdatePadTracker();
+    void DrawCameraImage();
+
+    void InitMove();
+    void UpdateMove();
+    void DrawMoveResult();
+
+    void InitMoveTracker();
     void UpdateMoveTracker();
-    bool HandleInput();
+    void DrawMoveTrackerResult();
+
     void FrameStart();
     void FrameEnd();
-    void DrawCameraImage();
-    void DrawPadTrackerResult();
-    void DrawMoveTrackerResult();
-    void DrawLoadingFrame();
+    void DrawLoadingOverlay();
 
-    bool use_dumped_frame = false;
+    bool HandleControllerInput();
+
+    bool use_dumped_frame = false, use_tracking = false;
     void* dumped_frame_buf[2]{};
 
     s32 user_id{};
@@ -63,27 +67,19 @@ public:
     s32 frame_id{};
 
     OrbisPadData pdata{};
-    OrbisCameraFrameData frame_data{};
-    OrbisPadTrackerInput pt_input{};
-    OrbisPadTrackerData pt_output{};
-    OrbisMoveTrackerImage mt_images[ORBIS_MOVE_MAX_IMAGES]{};
+
     OrbisMoveData m_data[ORBIS_MOVE_MAX_CONTROLLERS]{};
+
+    OrbisCameraFrameData frame_data{};
+    OrbisCameraExposureGain exposuregain{};
+
+    OrbisMoveTrackerImage mt_images[ORBIS_MOVE_MAX_IMAGES]{};
     OrbisMoveTrackerControllerInput mt_controllers[ORBIS_MOVE_MAX_CONTROLLERS]{};
     OrbisMoveTrackerState mt_state{};
-    OrbisCameraExposureGain exposuregain{};
 
     Scene2D* scene{};
     AppState state{};
 #ifdef GRAPHICS_USES_FONT
     FT_Face font{};
 #endif
-
-    OrbisCameraExposureGain exposure_gain{};
-
-    OrbisPadTrackerInput pad_input{};
-    OrbisPadTrackerData pad_output{};
-
-    OrbisMoveTrackerImage move_images[ORBIS_CAMERA_MAX_DEVICE_NUM]{};
-    OrbisMoveTrackerControllerInput move_controllers[ORBIS_MOVE_MAX_CONTROLLERS]{};
-    OrbisMoveTrackerState move_state{};
 };
