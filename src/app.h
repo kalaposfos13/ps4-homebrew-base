@@ -39,7 +39,7 @@ public:
     App();
     ~App();
 
-    void InitCamera();
+    bool InitCamera();
     bool UpdateCamera();
     void DrawCameraImage();
 

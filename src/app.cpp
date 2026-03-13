@@ -158,9 +158,9 @@ App::~App() {
     sceSystemServiceLoadExec("EXIT", nullptr);
 }
 
-void App::InitCamera() {
+bool App::InitCamera() {
     if (sceCameraIsAttached(0) != 1) {
-        return;
+        return false;
     }
 
     ASSERT_NO_ERROR(camera_handle =
@@ -202,6 +202,7 @@ void App::InitCamera() {
         std::ifstream is2(dump_path[1], std::ios::binary);
         is2.read(reinterpret_cast<char*>(dumped_frame_buf[1]), 1280 * 800 * 2);
     }
+    return true;
 }
 
 void App::InitMoveTracker() {
@@ -244,8 +245,9 @@ static int dump_next_camera_frame_id = -1;
 
 bool App::UpdateCamera() {
     if (camera_handle == 0) {
-        InitCamera();
-        return false;
+        if (!InitCamera()) {
+            return false;
+        }
     }
     if (sceCameraGetFrameData(camera_handle, &frame_data) != ORBIS_OK) {
         sceKernelUsleep(10000);
