@@ -9,11 +9,10 @@ int main(void) {
     app.InitMove();
     app.InitMoveTracker();
 
-    while (app.HandleControllerInput()) {
+    while (app.HandleControllerInput() && app.HandleMoveInput()) {
         if (!app.UpdateCamera()) {
             // continue;
         }
-        app.UpdateMove();
         app.UpdateMoveTracker();
         app.FrameStart();
         app.DrawCameraImage();

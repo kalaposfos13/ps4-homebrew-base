@@ -44,7 +44,7 @@ public:
     void DrawCameraImage();
 
     void InitMove();
-    void UpdateMove();
+    bool HandleMoveInput();
     void DrawMoveResult();
 
     void InitMoveTracker();

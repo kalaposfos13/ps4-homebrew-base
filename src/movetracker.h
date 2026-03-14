@@ -17,6 +17,18 @@ struct OrbisMoveButtonData {
     u16 trigger_data;
 };
 
+enum OrbisMoveButtonDataOffset : u16 {
+    Select = (1 << 0),
+    T = (1 << 1),
+    Move = (1 << 2),
+    Start = (1 << 3),
+    Triangle = (1 << 4),
+    Circle = (1 << 5),
+    Cross = (1 << 6),
+    Square = (1 << 7),
+    Intercepted = (1 << 15),
+};
+
 struct OrbisMoveExtensionPortData {
     u16 status;
     u16 digital0;

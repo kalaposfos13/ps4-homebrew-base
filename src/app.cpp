@@ -295,9 +295,6 @@ void App::UpdateMoveTracker() {
 
 bool App::HandleControllerInput() {
     scePadReadState(pad_handle, &pdata);
-    if ((pdata.buttons & OrbisPadButton::ORBIS_PAD_BUTTON_CIRCLE) != 0) {
-        return false;
-    }
     static std::map<OrbisPadButton, bool> btn_pressed{};
     auto is_button_pressed = [&, this](OrbisPadButton b) {
         if (!btn_pressed.contains(b)) {
@@ -313,6 +310,9 @@ bool App::HandleControllerInput() {
         }
         return false;
     };
+    if (is_button_pressed(OrbisPadButton::ORBIS_PAD_BUTTON_CIRCLE)) {
+        return false;
+    }
     if (is_button_pressed(OrbisPadButton::ORBIS_PAD_BUTTON_SQUARE)) {
         state.eye = 1 - state.eye;
     }
@@ -331,6 +331,30 @@ bool App::HandleControllerInput() {
                               move_ball_colour.b);
     }
     sceMoveSetVibration(move_handle, pdata.analogButtons.l2);
+
+    return true;
+}
+
+bool App::HandleMoveInput() {
+    ASSERT_NO_ERROR(sceMoveReadStateLatest(move_handle, m_data));
+    static std::map<OrbisMoveButtonDataOffset, bool> m_btn_pressed{};
+    auto is_m_button_pressed = [&, this](OrbisMoveButtonDataOffset b) {
+        if (!m_btn_pressed.contains(b)) {
+            m_btn_pressed[b] = false;
+        }
+        if ((m_data[0].button_data.button_data & b) != 0) {
+            if (!m_btn_pressed[b]) {
+                m_btn_pressed[b] = true;
+                return true;
+            }
+        } else {
+            m_btn_pressed[b] = false;
+        }
+        return false;
+    };
+    if (is_m_button_pressed(OrbisMoveButtonDataOffset::Circle)) {
+        return false;
+    }
 
     return true;
 }
@@ -376,22 +400,6 @@ void App::InitMove() {
     sceMoveSetLightSphere(move_handle, move_ball_colour.r, move_ball_colour.g, move_ball_colour.b);
 }
 
-void App::UpdateMove() {
-    ASSERT_NO_ERROR(sceMoveReadStateLatest(move_handle, m_data));
-}
-
-enum OrbisMoveButtonDataOffset : u16 {
-    Select = (1 << 0),
-    T = (1 << 1),
-    Move = (1 << 2),
-    Start = (1 << 3),
-    Triangle = (1 << 4),
-    Circle = (1 << 5),
-    Cross = (1 << 6),
-    Square = (1 << 7),
-    Intercepted = (1 << 15),
-};
-
 void App::DrawMoveResult() {
     auto const& md = m_data[0];
     // LOG_INFO("b: {:016b} t: {:03}", md.button_data.button_data, md.button_data.trigger_data);
@@ -431,8 +439,17 @@ void App::DrawMoveResult() {
     draw_centered_box( 40,  -30,  20,   20,   red,  PRESSED(Circle));   // o
     draw_centered_box( 40,  -70,  20,   20, green,  PRESSED(Triangle)); // ^
     draw_centered_box(  0,  300,  20,   10,   red,  false);             // power
-    // clang-format on
 #undef PRESSED
+    auto& g = md.gyro;
+    auto& a = md.accelerometer;
+    scene->DrawLine(1280 + 200, 800 + 140, s32(g[0] * -7), s32(g[0] * 7), 3, {0, 255, 255});
+    scene->DrawLine(1280 + 200, 800 + 140, s32(g[1] * -10), 0, 3, {0, 255, 255});
+    scene->DrawLine(1280 + 200, 800 + 140, 0, s32(g[2] * 10), 3, {0, 255, 255});
+
+    scene->DrawLine(1280 + 440, 800 + 140, s32(a[1] * 20), s32(a[1] * -20), 3, {0, 255, 255});
+    scene->DrawLine(1280 + 440, 800 + 140, s32(a[0] * -30), 0, 3, {0, 255, 255});
+    scene->DrawLine(1280 + 440, 800 + 140, 0, s32(a[2] * 30), 3, {0, 255, 255});
+    // clang-format on
 }
 
 void App::DrawMoveTrackerResult() {

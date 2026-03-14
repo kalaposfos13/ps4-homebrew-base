@@ -270,6 +270,44 @@ void Scene2D::DrawRectangleWithBorder(int const x, int const y, int const w, int
     }
 }
 
+void Scene2D::DrawLine(int const p1x, int const p1y, int const dx, int const dy, int const w,
+                       Color const c) {
+    int p2x = p1x + dx;
+    int p2y = p1y + dy;
+    int adx = abs(dx);
+    int ady = -abs(dy);
+
+    int sx = dx >= 0 ? 1 : -1;
+    int sy = dy >= 0 ? 1 : -1;
+
+    int err = adx + ady;
+
+    int x = p1x;
+    int y = p1y;
+
+    while (true) {
+        for (int oy = -w / 2; oy <= w / 2; ++oy) {
+            for (int ox = -w / 2; ox <= w / 2; ++ox) {
+                DrawPixel(x + ox, y + oy, c);
+            }
+        }
+
+        if (x == p2x && y == p2y)
+            break;
+
+        int e2 = 2 * err;
+
+        if (e2 >= ady) {
+            err += ady;
+            x += sx;
+        }
+        if (e2 <= adx) {
+            err += adx;
+            y += sy;
+        }
+    }
+}
+
 #ifdef GRAPHICS_USES_FONT
 void Scene2D::DrawText(char const* txt, FT_Face face, int startX, int startY, Color bgColor,
                        Color fgColor) {
