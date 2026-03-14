@@ -42,6 +42,7 @@ public:
     bool InitCamera();
     bool UpdateCamera();
     void DrawCameraImage();
+    void DrawPlaceholderCameraImage();
 
     void InitMove();
     bool HandleMoveInput();

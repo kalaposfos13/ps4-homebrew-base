@@ -372,12 +372,16 @@ void App::FrameEnd() {
 
 void App::DrawCameraImage() {
     if (camera_handle == 0) {
-        scene->DrawRectangle(0, 0, 1280, 800, {0, 0, 0});
+        DrawPlaceholderCameraImage();
         return;
     }
     if (use_dumped_frame) {
         DrawRAW16Frame(scene, dumped_frame_buf[state.mt_status == Status::Calibrating ? 0 : 1],
                        1280, 800);
+        return;
+    }
+    if (!frame_data.frame_ptr_list[state.eye][0]) {
+        DrawPlaceholderCameraImage();
         return;
     }
     switch (frame_data.meta.format[state.eye][0]) {
@@ -394,10 +398,14 @@ void App::DrawCameraImage() {
     }
 }
 
+void App::DrawPlaceholderCameraImage() {
+        scene->DrawRectangle(0, 0, 1280, 800, {0, 0, 0});
+}
+
 void App::InitMove() {
     ASSERT_OK(sceMoveInit());
-    move_handle = sceMoveOpen(user_id, /*standard*/ 0, 0);
-    sceMoveSetLightSphere(move_handle, move_ball_colour.r, move_ball_colour.g, move_ball_colour.b);
+    LOG_CALL(move_handle = sceMoveOpen(user_id, /*standard*/ 0, 0));
+    LOG_CALL(sceMoveSetLightSphere(move_handle, move_ball_colour.r, move_ball_colour.g, move_ball_colour.b));
 }
 
 void App::DrawMoveResult() {
