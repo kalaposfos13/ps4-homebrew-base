@@ -47,6 +47,7 @@ public:
     void InitMove();
     bool HandleMoveInput();
     void DrawMoveResult();
+    u8 GetVibrationStrength();
 
     void InitMoveTracker();
     void UpdateMoveTracker();

@@ -330,9 +330,15 @@ bool App::HandleControllerInput() {
         sceMoveSetLightSphere(move_handle, move_ball_colour.r, move_ball_colour.g,
                               move_ball_colour.b);
     }
-    sceMoveSetVibration(move_handle, pdata.analogButtons.l2);
 
     return true;
+}
+
+u8 App::GetVibrationStrength() {
+    return std::max(
+        pdata.analogButtons.l2,
+        (u8)(m_data->button_data.trigger_data *
+             ((m_data->button_data.button_data & OrbisMoveButtonDataOffset::Move) != 0 ? 1 : 0)));
 }
 
 bool App::HandleMoveInput() {
@@ -355,6 +361,7 @@ bool App::HandleMoveInput() {
     if (is_m_button_pressed(OrbisMoveButtonDataOffset::Circle)) {
         return false;
     }
+    sceMoveSetVibration(move_handle, GetVibrationStrength());
 
     return true;
 }
@@ -399,13 +406,14 @@ void App::DrawCameraImage() {
 }
 
 void App::DrawPlaceholderCameraImage() {
-        scene->DrawRectangle(0, 0, 1280, 800, {0, 0, 0});
+    scene->DrawRectangle(0, 0, 1280, 800, {0, 0, 0});
 }
 
 void App::InitMove() {
     ASSERT_OK(sceMoveInit());
     LOG_CALL(move_handle = sceMoveOpen(user_id, /*standard*/ 0, 0));
-    LOG_CALL(sceMoveSetLightSphere(move_handle, move_ball_colour.r, move_ball_colour.g, move_ball_colour.b));
+    LOG_CALL(sceMoveSetLightSphere(move_handle, move_ball_colour.r, move_ball_colour.g,
+                                   move_ball_colour.b));
 }
 
 void App::DrawMoveResult() {
@@ -422,7 +430,7 @@ void App::DrawMoveResult() {
     constexpr Color cyan = {64, 128, 255};
 
     auto draw_centered_box = [&, this](s32 x, s32 y, s32 w, s32 h, Color c, bool pressed) {
-        s32 amp = pdata.analogButtons.l2 >> 6;
+        s32 amp = GetVibrationStrength() >> 6;
         s32 vx = (rand() % (2 * amp + 1)) - amp;
         s32 vy = (rand() % (2 * amp + 1)) - amp;
         scene->DrawRectangleWithBorder(1280 + 320 + x - (w / 2) + vx, 400 + y - (h / 2) + vy, w, h,

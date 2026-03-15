@@ -1,7 +1,7 @@
 # Package metadata.
-TITLE       := camera test
+TITLE       := move test
 VERSION     := 0.01
-TITLE_ID    := KALA00014
+TITLE_ID    := KALA00015
 CONTENT_ID  := IV0000-$(TITLE_ID)_00-HOMEBREW00000000
 
 # Libraries linked into the ELF.
