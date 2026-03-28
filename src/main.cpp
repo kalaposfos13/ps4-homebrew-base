@@ -3,8 +3,10 @@
 int main(void) {
     App app{};
     app.use_dumped_frame = false;
-    app.use_tracking = false;
+    app.use_font = false;
 
+    app.InitGraphics();
+    app.InitFont();
     app.InitCamera();
     app.InitMove();
     app.InitMoveTracker();

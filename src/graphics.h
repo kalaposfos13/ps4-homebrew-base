@@ -3,14 +3,10 @@
 #include <orbis/libkernel.h>
 #include <stdint.h>
 
-// #define GRAPHICS_USES_FONT 1
-
 #ifndef GRAPHICS_H
 #define GRAPHICS_H
 
-#ifdef GRAPHICS_USES_FONT
 #include <proto-include.h>
-#endif
 
 // Color is used to pack together RGB information, and is used for every function that draws colored
 // pixels.
@@ -21,9 +17,7 @@ struct Color {
 };
 
 class Scene2D {
-#ifdef GRAPHICS_USES_FONT
     FT_Library ftLib;
-#endif
 
     int depth;
     int video;
@@ -55,6 +49,7 @@ public:
     ~Scene2D();
 
     bool Init(size_t memSize, int numFrameBuffers);
+    int InitFontLib();
 
     void SetActiveFrameBuffer(int index);
     void SubmitFlip(int frameID);
@@ -71,13 +66,9 @@ public:
     void DrawLine(int const p1x, int const p1y, int const dx, int const dy, int const w,
                   Color const c);
 
-#ifdef GRAPHICS_USES_FONT
     bool InitFont(FT_Face* face, const char* fontPath, int fontSize);
     void DrawText(char const* txt, FT_Face face, int startX, int startY, Color bgColor,
                   Color fgColor);
-    void DrawTextContainer(char* txt, FT_Face face, int startX, int startY, int maxW, int maxH,
-                           Color bgColor, Color fgColor);
-#endif
 };
 
 #endif

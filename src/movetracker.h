@@ -54,6 +54,7 @@ s32 sceMoveInit();
 s32 sceMoveOpen(OrbisUserServiceUserId userId, s32 type, s32 index);
 s32 sceMoveReadStateLatest(s32 handle, OrbisMoveData* pData);
 s32 sceMoveSetLightSphere(s32 handle, u8 r, u8 g, u8 b);
+s32 sceMoveResetLightSphere(s32 handle);
 s32 sceMoveSetVibration(s32 handle, u8 motor);
 
 // movetracker
@@ -103,3 +104,11 @@ s32 sceMoveTrackerCameraUpdate(OrbisMoveTrackerImage images[2], OrbisFVector3 ca
 int32_t sceMoveTrackerControllersUpdate(
     OrbisMoveTrackerControllerInput controllerInputs[ORBIS_MOVE_MAX_CONTROLLERS]);
 }
+
+typedef struct {
+    float x;
+    float y;
+    float radius;
+    float angle;
+    float length;
+} MoveScreenState;

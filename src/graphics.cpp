@@ -26,23 +26,6 @@ bool Scene2D::Init(size_t memSize, int numFrameBuffers) {
         return false;
     }
 
-#ifdef GRAPHICS_USES_FONT
-    // Load freetype
-    rc = sceSysmoduleLoadModule(ORBIS_SYSMODULE_FREETYPE_OL);
-
-    if (rc < 0) {
-        LOG_DEBUG("Failed to load freetype: {}", std::string(strerror(errno)));
-        return false;
-    }
-    // Initialize freetype
-    rc = FT_Init_FreeType(&this->ftLib);
-
-    if (rc != 0) {
-        LOG_DEBUG("Failed to initialize freetype: {}", std::string(strerror(errno)));
-        return false;
-    }
-#endif
-
     if (!initFlipQueue()) {
         LOG_DEBUG("Failed to initialize flip queue: {}", std::string(strerror(errno)));
         return false;
@@ -60,6 +43,23 @@ bool Scene2D::Init(size_t memSize, int numFrameBuffers) {
 
     sceVideoOutSetFlipRate(this->video, 0);
     return true;
+}
+
+int Scene2D::InitFontLib() {
+    // Load freetype
+    int rc = sceSysmoduleLoadModule(ORBIS_SYSMODULE_FREETYPE_OL);
+    if (rc < 0) {
+        LOG_DEBUG("Failed to load freetype: {}", std::string(strerror(errno)));
+        return ORBIS_FAIL;
+    }
+    // Initialize freetype
+    rc = FT_Init_FreeType(&this->ftLib);
+
+    if (rc != 0) {
+        LOG_DEBUG("Failed to initialize freetype: {}", std::string(strerror(errno)));
+        return ORBIS_FAIL;
+    }
+    return ORBIS_OK;
 }
 
 bool Scene2D::initFlipQueue() {
@@ -195,7 +195,6 @@ void Scene2D::FrameBufferClear() {
     FrameBufferFill(blank);
 }
 
-#ifdef GRAPHICS_USES_FONT
 bool Scene2D::InitFont(FT_Face* face, const char* fontPath, int fontSize) {
     int rc;
 
@@ -211,14 +210,15 @@ bool Scene2D::InitFont(FT_Face* face, const char* fontPath, int fontSize) {
 
     return true;
 }
-#endif
 
 void Scene2D::FrameBufferFill(Color color) {
     DrawRectangle(0, 0, this->width, this->height, color);
 }
 
 inline void Scene2D::DrawPixel(int const x, int const y, Color const color) {
-
+    if (x < 0 || y < 0 || x > width || y > height) {
+        return;
+    }
     int pixel = (y * this->width) + x;
     uint32_t encodedColor = 0x80000000u | (color.r << 16) | (color.g << 8) | color.b;
     ((uint32_t*)this->frameBuffers[this->activeFrameBufferIdx])[pixel] = encodedColor;
@@ -226,6 +226,9 @@ inline void Scene2D::DrawPixel(int const x, int const y, Color const color) {
 
 void Scene2D::DrawRectangle(int const x, int const y, int const w, int const h, Color const color) {
     int xPos, yPos;
+    if (x < 0 || y < 0 || x + w > width || y + h > height) {
+        return;
+    }
 
     // Draw row-by-row, column-by-column
     for (yPos = y; yPos < y + h; yPos++) {
@@ -272,6 +275,7 @@ void Scene2D::DrawRectangleWithBorder(int const x, int const y, int const w, int
 
 void Scene2D::DrawLine(int const p1x, int const p1y, int const dx, int const dy, int const w,
                        Color const c) {
+
     int p2x = p1x + dx;
     int p2y = p1y + dy;
     int adx = abs(dx);
@@ -308,7 +312,6 @@ void Scene2D::DrawLine(int const p1x, int const p1y, int const dx, int const dy,
     }
 }
 
-#ifdef GRAPHICS_USES_FONT
 void Scene2D::DrawText(char const* txt, FT_Face face, int startX, int startY, Color bgColor,
                        Color fgColor) {
     int rc;
@@ -379,4 +382,3 @@ void Scene2D::DrawText(char const* txt, FT_Face face, int startX, int startY, Co
         xOffset += slot->advance.x >> 6;
     }
 }
-#endif

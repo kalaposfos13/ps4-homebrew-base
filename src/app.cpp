@@ -1,100 +1,88 @@
 #include "app.h"
+#include "algos.h"
 
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <map>
 
 const char* dump_path[2] = {"/data/homebrew/frame_dump1.bin", "/data/homebrew/frame_dump2.bin"};
 
-static inline uint32_t YUVtoRGBA(uint8_t y, uint8_t u, uint8_t v) {
-    int c = (int)y - 16;
-    int d = (int)u - 128;
-    int e = (int)v - 128;
+using OMB = OrbisMoveButtonDataOffset;
 
-    int r = (298 * c + 409 * e + 128) >> 8;
-    int g = (298 * c - 100 * d - 208 * e + 128) >> 8;
-    int b = (298 * c + 516 * d + 128) >> 8;
+MoveScreenState ConvertMoveDataToScreenDimensions(const OrbisMoveTrackerState* s) {
+    const float width = 1280.0f;
+    const float height = 800.0f;
 
-    if (r < 0)
-        r = 0;
-    else if (r > 255)
-        r = 255;
-    if (g < 0)
-        g = 0;
-    else if (g > 255)
-        g = 255;
-    if (b < 0)
-        b = 0;
-    else if (b > 255)
-        b = 255;
+    const float cx = width * 0.5f;
+    const float cy = height * 0.5f;
 
-    return 0x80000000u | (r << 16) | (g << 8) | b;
-}
-void DrawYUV422Frame(Scene2D* scene, void* yuvBuffer, int width, int height) {
-    u8* src = static_cast<u8*>(yuvBuffer);
-    u32* dst = reinterpret_cast<u32*>(scene->frameBuffers[scene->activeFrameBufferIdx]);
+    const float fx = 1100.0f;
+    const float fy = 1000.0f;
 
-    for (int y = 0; y < height; y++) {
-        u32* row = dst + y * scene->width;
-        int srcRow = y * width * 2;
+    const float ball_radius = 0.022f;
+    const float handle_length = 0.15f;
 
-        for (int x = 0; x < width; x += 2) {
-            int idx = srcRow + x * 2;
+    float X = s->position.x;
+    float Y = s->position.y;
+    float Z = s->position.z;
 
-            u16 y0 = src[idx + 0];
-            u16 u = src[idx + 1];
-            u16 y1 = src[idx + 2];
-            u16 v = src[idx + 3];
+    // Convert WORLD → CAMERA coordinates
+    rotate_x(&Y, &Z, -s->cameraPitchAngle);
+    rotate_z(&X, &Y, -s->cameraRollAngle);
 
-            row[x + 0] = YUVtoRGBA(y0, u, v);
-            row[x + 1] = YUVtoRGBA(y1, u, v);
-        }
-    }
-}
-void DrawRAW16Frame(Scene2D* scene, void* rawBuffer, int width, int height) {
-    const u16* src = static_cast<const u16*>(rawBuffer);
-    u32* dst = reinterpret_cast<u32*>(scene->frameBuffers[scene->activeFrameBufferIdx]);
+    MoveScreenState out = {};
 
-    for (int y = 0; y < height - 1; y++) {
-        for (int x = 0; x < width - 1; x++) {
-            int idx = y * width + x;
+    if (Z <= 0.001f || !std::isfinite(Z))
+        return out;
 
-            bool evenRow = (y % 2) == 0;
-            bool evenCol = (x % 2) == 0;
+    // Project center
+    float xn = X / Z;
+    float yn = Y / Z;
 
-            u16 R = 0, G = 0, B = 0;
+    // radial distortion
+    float r2 = xn * xn + yn * yn;
 
-            if (evenRow && evenCol) {
-                // B
-                B = src[idx];
-                G = src[idx + 1];
-                R = src[idx + width + 1];
-            } else if (evenRow && !evenCol) {
-                // G (blue row)
-                G = src[idx];
-                B = src[idx - 1];
-                R = src[idx + width];
-            } else if (!evenRow && evenCol) {
-                // G (red row)
-                G = src[idx];
-                R = src[idx + 1];
-                B = src[idx - width];
-            } else if (!evenRow && !evenCol) {
-                // R
-                R = src[idx];
-                G = src[idx - 1];
-                B = src[idx - width - 1];
-            }
+    float k1 = -0.25;
+    float k2 = 0.15;
 
-            constexpr u16 WHITE = 4095;
+    float factor = 1.0f + k1 * r2 + k2 * r2 * r2;
 
-            u8 r = std::min(WHITE, R) >> 4;
-            u8 g = std::min(WHITE, G) >> 4;
-            u8 b = std::min(WHITE, B) >> 4;
+    xn *= factor;
+    yn *= factor;
 
-            dst[y * scene->width + x] = (0xFF << 24) | (r << 16) | (g << 8) | b;
-        }
-    }
+    // then project
+    out.x = fx * xn + cx;
+    out.y = cy - fy * yn;
+
+    // Project sphere radius
+    out.radius = fx * (ball_radius / Z);
+
+    // Handle direction vector (0,0,1)
+    float dir[3] = {0, 0, 1};
+    quat_rotate(s->orientation, dir);
+    rotate_x(&dir[1], &dir[2], -s->cameraPitchAngle);
+    rotate_z(&dir[0], &dir[1], -s->cameraRollAngle);
+
+    // Handle end in world space
+    float endX = X + dir[0] * handle_length;
+    float endY = Y + dir[1] * handle_length;
+    float endZ = Z + dir[2] * handle_length;
+
+    // Project handle end
+    float end2D_x = fx * (endX / endZ) + cx;
+    float end2D_y = cy - fy * (endY / endZ);
+
+    float dx = end2D_x - out.x;
+    float dy = end2D_y - out.y;
+
+    // Apparent length
+    out.length = sqrtf(dx * dx + dy * dy);
+
+    // 2D rotation angle
+    out.angle = atan2f(dy, dx);
+
+    return out;
 }
 
 enum MemoryProt : u32 {
@@ -129,8 +117,8 @@ static VAddr alloc_memory(size_t size, size_t alignment, u32 memType, u32 prot) 
 }
 
 App::App() {
+    // sceSysmoduleLoadModule(ORBIS_SYSMODULE);
     sceSysmoduleLoadModule(ORBIS_SYSMODULE_MOVE);
-    sceSysmoduleLoadModule(ORBIS_SYSMODULE_MOVE_TRACKER);
 
     OrbisUserServiceInitializeParams param;
     param.priority = ORBIS_KERNEL_PRIO_FIFO_LOWEST;
@@ -139,17 +127,6 @@ App::App() {
     scePadInit();
     ASSERT_NO_ERROR(pad_handle = scePadOpen(user_id, 0, 0, 0));
     LOG_INFO("userid: {}, pad handle: {:x}", user_id, pad_handle);
-
-    int frameID = 0;
-    scene = new Scene2D(1920, 1080, 4);
-    ASSERT_MSG(scene->Init(0xC000000, 2), "Failed to initialize 2D scene");
-
-#ifdef GRAPHICS_USES_FONT
-    std::string font_path =
-        fmt::format("/{}/common/font/DFHEI5-SONY.ttf", sceKernelGetFsSandboxRandomWord());
-    ASSERT_MSG(scene->InitFont(&font, font_path.c_str(), 40) && font != nullptr,
-               "Failed to init font");
-#endif
 }
 
 App::~App() {
@@ -210,6 +187,7 @@ void App::InitMoveTracker() {
     if (!use_tracking) {
         return;
     }
+    sceSysmoduleLoadModule(ORBIS_SYSMODULE_MOVE_TRACKER);
 
     LOG_INFO("Setting up move tracker");
 
@@ -239,7 +217,8 @@ void App::InitMoveTracker() {
                                   MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
     VAddr mt_garlic = alloc_memory(mt_g_s, 0, ORBIS_KERNEL_WC_GARLIC,
                                    MemoryProt::CpuReadWrite | MemoryProt::GpuReadWrite);
-    ASSERT_OK(sceMoveTrackerInit(mt_onion, mt_garlic, 0, 1));
+    ASSERT_OK(sceMoveTrackerInit(mt_onion, mt_garlic, 0, 0));
+    sceMoveResetLightSphere(move_handle);
 }
 
 static int dump_next_camera_frame_id = -1;
@@ -267,19 +246,36 @@ bool App::UpdateCamera() {
     return true;
 }
 
+void App::InitGraphics() {
+    scene = new Scene2D(1920, 1080, 4);
+    ASSERT_MSG(scene->Init(0xC000000, 2), "Failed to initialize 2D scene");
+}
+
+void App::InitFont() {
+    if (!use_font) {
+        return;
+    }
+    ASSERT_OK(scene->InitFontLib());
+    std::string font_path =
+        fmt::format("/{}/common/font/DFHEI5-SONY.ttf", sceKernelGetFsSandboxRandomWord());
+    ASSERT_MSG(scene->InitFont(&font, font_path.c_str(), 40) && font != nullptr,
+               "Failed to init font");
+}
+
 void App::UpdateMoveTracker() {
     if (!use_tracking) {
         return;
     }
     auto now = sceKernelGetProcessTime();
     mt_images[0].timestamp = now;
-    mt_images[1].timestamp = now;
+    // mt_images[1].timestamp = now;
     mt_images[0].data = frame_data.frame_ptr_list[0][0];
-    mt_images[1].data = frame_data.frame_ptr_list[1][0];
-    ASSERT_OK(sceMoveTrackerCameraUpdate(mt_images, frame_data.meta.acceleration));
+    // mt_images[1].data = frame_data.frame_ptr_list[1][0];
     ASSERT_OK(sceMoveTrackerControllersUpdate(mt_controllers));
+    ASSERT_OK(sceMoveTrackerCameraUpdate(mt_images, frame_data.meta.acceleration));
     s32 get_state_status = 0;
-    ASSERT_NO_ERROR(get_state_status = sceMoveTrackerGetState(move_handle, s64(-1), &mt_state));
+    ASSERT_NO_ERROR(get_state_status = sceMoveTrackerGetState(
+                        move_handle, now + ORBIS_MOVE_TRACKER_LATENCY, &mt_state));
     switch (get_state_status) {
     case 0:
         state.mt_status = Status::Tracking;
@@ -338,13 +334,13 @@ u8 App::GetVibrationStrength() {
     return std::max(
         pdata.analogButtons.l2,
         (u8)(m_data->button_data.trigger_data *
-             ((m_data->button_data.button_data & OrbisMoveButtonDataOffset::Move) != 0 ? 1 : 0)));
+             ((m_data->button_data.button_data & OMB::Move) != 0 ? 1 : 0)));
 }
 
 bool App::HandleMoveInput() {
     ASSERT_NO_ERROR(sceMoveReadStateLatest(move_handle, m_data));
-    static std::map<OrbisMoveButtonDataOffset, bool> m_btn_pressed{};
-    auto is_m_button_pressed = [&, this](OrbisMoveButtonDataOffset b) {
+    static std::map<OMB, bool> m_btn_pressed{};
+    auto is_m_button_pressed = [&, this](OMB b) {
         if (!m_btn_pressed.contains(b)) {
             m_btn_pressed[b] = false;
         }
@@ -358,8 +354,38 @@ bool App::HandleMoveInput() {
         }
         return false;
     };
-    if (is_m_button_pressed(OrbisMoveButtonDataOffset::Circle)) {
+    auto is_m_button_down = [&, this](OMB b) {
+        return ((m_data[0].button_data.button_data & b) != 0);
+    };
+    auto is_t_plus_m_button_pressed = [&](OMB b) {
+        return is_m_button_pressed(b) &&
+        is_m_button_down(OMB::T);
+    };
+    if (is_t_plus_m_button_pressed(OMB::Cross)) {
+        s32 r = rand() % 8;
+        move_ball_colour.r = (r & 0b100) ? 255 : 0;
+        move_ball_colour.g = (r & 0b010) ? 255 : 0;
+        move_ball_colour.b = (r & 0b001) ? 255 : 0;
+        sceMoveSetLightSphere(move_handle, move_ball_colour.r, move_ball_colour.g,
+                              move_ball_colour.b);
+    }
+    if (is_t_plus_m_button_pressed(OMB::Circle)) {
+        LOG_INFO("Exiting");
         return false;
+    }
+    if (is_t_plus_m_button_pressed(OMB::Square)) {
+        if (!use_tracking) {
+            LOG_INFO("Enabling tracking");
+            use_tracking = true;
+            InitMoveTracker();
+        }
+    }
+    if (is_t_plus_m_button_pressed(OMB::Triangle)) {
+        if (!use_font) {
+            LOG_INFO("Enabling fonts");
+            use_font = true;
+            InitFont();
+        }
     }
     sceMoveSetVibration(move_handle, GetVibrationStrength());
 
@@ -367,7 +393,9 @@ bool App::HandleMoveInput() {
 }
 
 void App::FrameStart() {
-    scene->FrameBufferClear();
+    scene->DrawRectangle(1280, 0, 1920 - 1280, 1080, {75, 75, 75});
+    scene->DrawRectangle(0, 800, 1280, 1080 - 800, {75, 75, 75});
+    DrawPlaceholderCameraImage();
 }
 
 void App::FrameEnd() {
@@ -437,10 +465,9 @@ void App::DrawMoveResult() {
                                        pressed ? light_gray : c, 3, white);
     };
     auto& b = md.button_data.button_data;
-    using OMB = OrbisMoveButtonDataOffset;
     s32 fill = int((float)md.button_data.trigger_data / 255.f * 75.f);
     auto& bc = move_ball_colour;
-#define PRESSED(btn) (b & OrbisMoveButtonDataOffset::btn) != 0
+#define PRESSED(btn) (b & OMB::btn) != 0
     // clang-format off
     draw_centered_box(  0,  100, 150,  500, black,  false);             // body
     draw_centered_box(  0, -250, 170,  170,    bc,  false);             // ball
@@ -471,11 +498,18 @@ void App::DrawMoveTrackerResult() {
     if (!use_tracking) {
         return;
     }
-    if (state.mt_status == Status::Tracking) {
-        LOG_INFO("x: {}, y: {}, z: {}", mt_state.position.x, mt_state.position.y,
-                 mt_state.position.z);
+    if (state.mt_status == Status::Calibrating) {
+        DrawLoadingOverlay();
+        return;
     }
-#ifdef GRAPHICS_USES_FONT
+    auto const& msd = ConvertMoveDataToScreenDimensions(&mt_state);
+    scene->DrawRectangle(msd.x - (msd.radius), msd.y - (msd.radius), msd.radius * 2, msd.radius * 2,
+                         {0, 0, 255});
+    scene->DrawLine(msd.x, msd.y, cosf(msd.angle) * std::min(msd.length, 200.f),
+                    sinf(msd.angle) * std::min(msd.length, 200.f), 8, {0, 0, 0});
+    if (!use_font) {
+        return;
+    }
     std::string pos_text =
         fmt::format("x: {:+07.3f}\ny: {:+07.3f}\nz: {:+07.3f}", mt_state.position.x,
                     mt_state.position.y, mt_state.position.z);
@@ -489,7 +523,6 @@ void App::DrawMoveTrackerResult() {
     std::string accel_text =
         fmt::format("dx: {:+07.3f}\ndy: {:+07.3f}\ndz: {:+07.3f}", acc.x, acc.y, acc.z);
     scene->DrawText(accel_text.c_str(), font, 400, 850, {0, 0, 0}, {255, 255, 255});
-#endif
 }
 
 void App::DrawLoadingOverlay() {

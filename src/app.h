@@ -41,6 +41,8 @@ public:
 
     bool InitCamera();
     bool UpdateCamera();
+    void InitGraphics();
+    void InitFont();
     void DrawCameraImage();
     void DrawPlaceholderCameraImage();
 
@@ -59,7 +61,7 @@ public:
 
     bool HandleControllerInput();
 
-    bool use_dumped_frame = false, use_tracking = false;
+    bool use_dumped_frame = false, use_tracking = false, use_font = false;
     void* dumped_frame_buf[2]{};
 
     s32 user_id{};
@@ -82,7 +84,5 @@ public:
 
     Scene2D* scene{};
     AppState state{};
-#ifdef GRAPHICS_USES_FONT
     FT_Face font{};
-#endif
 };
