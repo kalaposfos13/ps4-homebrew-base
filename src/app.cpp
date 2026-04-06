@@ -1,5 +1,5 @@
-#include "app.h"
 #include "algos.h"
+#include "app.h"
 
 #include <cmath>
 #include <filesystem>
@@ -331,10 +331,9 @@ bool App::HandleControllerInput() {
 }
 
 u8 App::GetVibrationStrength() {
-    return std::max(
-        pdata.analogButtons.l2,
-        (u8)(m_data->button_data.trigger_data *
-             ((m_data->button_data.button_data & OMB::Move) != 0 ? 1 : 0)));
+    return std::max(pdata.analogButtons.l2,
+                    (u8)(m_data->button_data.trigger_data *
+                         ((m_data->button_data.button_data & OMB::Move) != 0 ? 1 : 0)));
 }
 
 bool App::HandleMoveInput() {
@@ -358,8 +357,7 @@ bool App::HandleMoveInput() {
         return ((m_data[0].button_data.button_data & b) != 0);
     };
     auto is_t_plus_m_button_pressed = [&](OMB b) {
-        return is_m_button_pressed(b) &&
-        is_m_button_down(OMB::T);
+        return is_m_button_pressed(b) && is_m_button_down(OMB::T);
     };
     if (is_t_plus_m_button_pressed(OMB::Cross)) {
         s32 r = rand() % 8;
@@ -442,6 +440,11 @@ void App::InitMove() {
     LOG_CALL(move_handle = sceMoveOpen(user_id, /*standard*/ 0, 0));
     LOG_CALL(sceMoveSetLightSphere(move_handle, move_ball_colour.r, move_ball_colour.g,
                                    move_ball_colour.b));
+    OrbisMoveDeviceInfo di{};
+    sceMoveGetDeviceInfo(move_handle, &di);
+    LOG_INFO("ball radius: {}", di.sphere_radius);
+    LOG_INFO("accelerometer_offset: {} {} {}", di.accelerometer_offset[0],
+             di.accelerometer_offset[1], di.accelerometer_offset[2]);
 }
 
 void App::DrawMoveResult() {
@@ -492,6 +495,15 @@ void App::DrawMoveResult() {
     scene->DrawLine(1280 + 440, 800 + 140, std::clamp(s32(a[0] * -30), -100, 100), std::clamp(              0, -100, 100), 3, {0, 255, 255});
     scene->DrawLine(1280 + 440, 800 + 140, std::clamp(              0, -100, 100), std::clamp( s32(a[2] * 30), -100, 100), 3, {0, 255, 255});
     // clang-format on
+    if (!use_font) {
+        return;
+    }
+    OrbisMoveDeviceInfo di{};
+    sceMoveGetDeviceInfo(move_handle, &di);
+    std::string move_device_info_text = fmt::format(
+        "ball radius: {}  accelerometer_offset: {} {} {}", di.sphere_radius,
+        di.accelerometer_offset[0], di.accelerometer_offset[1], di.accelerometer_offset[2]);
+    scene->DrawText(move_device_info_text.c_str(), font, 50, 1050, {0, 0, 0}, {255, 255, 255});
 }
 
 void App::DrawMoveTrackerResult() {

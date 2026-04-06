@@ -55,6 +55,7 @@ s32 sceMoveOpen(OrbisUserServiceUserId userId, s32 type, s32 index);
 s32 sceMoveReadStateLatest(s32 handle, OrbisMoveData* pData);
 s32 sceMoveSetLightSphere(s32 handle, u8 r, u8 g, u8 b);
 s32 sceMoveResetLightSphere(s32 handle);
+s32 sceMoveGetDeviceInfo(s32 handle, OrbisMoveDeviceInfo* device_info);
 s32 sceMoveSetVibration(s32 handle, u8 motor);
 
 // movetracker
