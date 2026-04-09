@@ -456,6 +456,22 @@ void App::DrawMoveTrackerResult() {
 #endif
 }
 
+void App::DrawDebugStuff() {
+#ifdef GRAPHICS_USES_FONT
+    u32 pad_info[64]{};
+    std::memset(pad_info, 0xaa, sizeof(pad_info));
+    scePadGetInfo(pad_info);
+    for (int i = 0; i < 5; i++) {
+        std::string debug_text =
+            fmt::format("{:08x} {:08x} {:08x} {:08x} {:08x} {:08x} {:08x} {:08x}",
+                        pad_info[(i * 8) + 0], pad_info[(i * 8) + 1], pad_info[(i * 8) + 2],
+                        pad_info[(i * 8) + 3], pad_info[(i * 8) + 4], pad_info[(i * 8) + 5],
+                        pad_info[(i * 8) + 6], pad_info[(i * 8) + 7]);
+        scene->DrawText(debug_text.c_str(), font, 50, 850 + (i * 50), {0, 0, 0}, {255, 0, 255});
+    }
+#endif
+}
+
 void App::DrawLoadingFrame() {
     scene->DrawRectangle(400 + 000, 375, 50, 50, {255, 255, 255});
     scene->DrawRectangle(400 + 200, 375, 50, 50, {255, 255, 255});

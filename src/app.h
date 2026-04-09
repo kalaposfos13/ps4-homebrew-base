@@ -51,6 +51,7 @@ public:
     void DrawCameraImage();
     void DrawPadTrackerResult();
     void DrawMoveTrackerResult();
+    void DrawDebugStuff();
     void DrawLoadingFrame();
 
     bool use_dumped_frame = false;

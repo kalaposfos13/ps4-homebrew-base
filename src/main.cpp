@@ -17,6 +17,7 @@ int main(void) {
         app.DrawCameraImage();
         app.DrawPadTrackerResult();
         // app.DrawMoveTrackerResult();
+        app.DrawDebugStuff();
         app.FrameEnd();
     }
 }
