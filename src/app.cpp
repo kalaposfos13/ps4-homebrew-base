@@ -488,12 +488,19 @@ void App::DrawMoveResult() {
 #undef PRESSED
     auto& g = md.gyro;
     auto& a = md.accelerometer;
+    auto& A = frame_data.meta.acceleration;
+
     scene->DrawLine(1280 + 200, 800 + 140, std::clamp( s32(g[0] * -7), -100, 100), std::clamp(  s32(g[0] * 7), -100, 100), 3, {0, 255, 255});
     scene->DrawLine(1280 + 200, 800 + 140, std::clamp(s32(g[1] * -10), -100, 100), std::clamp(              0, -100, 100), 3, {0, 255, 255});
     scene->DrawLine(1280 + 200, 800 + 140, std::clamp(              0, -100, 100), std::clamp( s32(g[2] * 10), -100, 100), 3, {0, 255, 255});
+
     scene->DrawLine(1280 + 440, 800 + 140, std::clamp( s32(a[1] * 20), -100, 100), std::clamp(s32(a[1] * -20), -100, 100), 3, {0, 255, 255});
     scene->DrawLine(1280 + 440, 800 + 140, std::clamp(s32(a[0] * -30), -100, 100), std::clamp(              0, -100, 100), 3, {0, 255, 255});
     scene->DrawLine(1280 + 440, 800 + 140, std::clamp(              0, -100, 100), std::clamp( s32(a[2] * 30), -100, 100), 3, {0, 255, 255});
+
+    scene->DrawLine(1280 + 320, 800 + 140, std::clamp(s32(A.x * -30), -100, 100),  std::clamp(              0, -100, 100), 3, {0, 255, 255});
+    scene->DrawLine(1280 + 320, 800 + 140, std::clamp(              0, -100, 100), std::clamp( s32(A.y * -30), -100, 100), 3, {0, 255, 255});
+    scene->DrawLine(1280 + 320, 800 + 140, std::clamp( s32(A.z * 20), -100, 100),  std::clamp(s32(A.z * -20), -100, 100), 3, {0, 255, 255});
     // clang-format on
     if (!use_font) {
         return;
