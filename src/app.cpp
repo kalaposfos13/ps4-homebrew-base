@@ -54,8 +54,8 @@ void DrawRAW16Frame(Scene2D* scene, void* rawBuffer, int width, int height) {
     const u16* src = static_cast<const u16*>(rawBuffer);
     u32* dst = reinterpret_cast<u32*>(scene->frameBuffers[scene->activeFrameBufferIdx]);
 
-    for (int y = 0; y < height - 1; y++) {
-        for (int x = 0; x < width - 1; x++) {
+    for (int y = 0; y < height - 1; y += 3) {
+        for (int x = 0; x < width - 1; x += 3) {
             int idx = y * width + x;
 
             bool evenRow = (y % 2) == 0;
@@ -469,6 +469,10 @@ void App::DrawDebugStuff() {
                         pad_info[(i * 8) + 6], pad_info[(i * 8) + 7]);
         scene->DrawText(debug_text.c_str(), font, 50, 850 + (i * 50), {0, 0, 0}, {255, 0, 255});
     }
+    std::string debug_text1 = fmt::format("pad2: {:08}", pdata.touch.pad2);
+    scene->DrawText(debug_text1.c_str(), font, 1500, 850, {0, 0, 0}, {255, 0, 255});
+#else
+    LOG_INFO("pad2: {:08}", pdata.touch.pad2);
 #endif
 }
 
