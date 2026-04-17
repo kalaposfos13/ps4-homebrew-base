@@ -44,6 +44,7 @@ void PrintLogR(char const* format, Args const&... args) {
 #define LOG_WARNING(...) PrintLog("Warning", __FILE__, __LINE__, __func__, __VA_ARGS__)
 #define LOG_ERROR(...) PrintLog("Error", __FILE__, __LINE__, __func__, __VA_ARGS__)
 #define LOG_CRITICAL(...) PrintLog("Critical", __FILE__, __LINE__, __func__, __VA_ARGS__)
+#define LOG_CALL(...) do { LOG_INFO(#__VA_ARGS__); __VA_ARGS__; } while (0)
 
 #define LOG_CALL(...) do { LOG_INFO(#__VA_ARGS__); __VA_ARGS__; } while (0)
 #define LOG_NOTIFICATION(...) PrintLogN("Notification", __FILE__, __LINE__, __func__, __VA_ARGS__)
