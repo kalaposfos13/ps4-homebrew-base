@@ -15,6 +15,13 @@ Scene2D::Scene2D(int w, int h, int pixelDepth)
       frameBuffers(nullptr), activeFrameBufferIdx(0), video(0), videoMem(nullptr), videoMemSP(0),
       directMemOff(0), directMemAllocationSize(0) {}
 
+Scene2D::~Scene2D() {
+    deallocateVideoMem();
+    if (ftLib) {
+        FT_Done_FreeType(ftLib);
+    }
+}
+
 bool Scene2D::Init(size_t memSize, int numFrameBuffers) {
     int rc;
 
@@ -216,7 +223,7 @@ void Scene2D::FrameBufferFill(Color color) {
     DrawRectangle(0, 0, this->width, this->height, color);
 }
 
-inline void Scene2D::DrawPixel(int const x, int const y, Color const color) {
+void Scene2D::DrawPixel(int const x, int const y, Color const color) {
     if (x < 0 || y < 0 || x > width || y > height) {
         return;
     }

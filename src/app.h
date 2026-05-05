@@ -4,6 +4,7 @@
 #include "graphics.h"
 #include "logging.h"
 #include "types.h"
+#include "camera.h"
 
 #include <orbis/Pad.h>
 #include <orbis/Sysmodule.h>
@@ -12,15 +13,10 @@
 #include <orbis/libkernel.h>
 
 #include <cstdlib>
-
-enum Status : u32 {
-    Tracking,
-    NotTracking,
-    Calibrating,
-    Error,
-};
+#include "renderer.h"
 
 struct AppState {
+    s32 eye = 0;
 };
 
 class App {
@@ -29,12 +25,8 @@ public:
     ~App();
 
     void Run();
-
-    void InitGraphics();
-    void InitFont();
-
-    void FrameStart();
-    void FrameEnd();
+    void DrawCameraImage();
+    void DrawPlaceholderCameraImage();
 
     void DrawDemo();
 
@@ -47,7 +39,7 @@ public:
 
     OrbisPadData pdata{};
 
-    Scene2D* scene{};
+    Camera camera{};
+    Renderer renderer{};
     AppState state{};
-    FT_Face font{};
 };

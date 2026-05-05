@@ -17,7 +17,6 @@ struct Color {
 };
 
 class Scene2D {
-    FT_Library ftLib;
 
     int depth;
     int video;
@@ -34,6 +33,7 @@ class Scene2D {
     int frameBufferCount;
 
 public:
+    FT_Library ftLib;
     int width;
     int height;
     char** frameBuffers;
@@ -69,8 +69,8 @@ public:
                   Color const c);
 
     bool InitFont(FT_Face* face, const char* fontPath, int fontSize);
+
     void DrawText(char const* txt, FT_Face face, int startX, int startY, Color bgColor,
                   Color fgColor);
 };
-
 #endif
