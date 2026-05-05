@@ -1,8 +1,19 @@
 #include "app.h"
 
 #include <map>
+#include <utility>
+
+void App::Run() {
+    while (HandleControllerInput()) {
+        camera.Update();
+        renderer.BeginFrame();
+        DrawCameraImage();
+        renderer.EndFrame();
+    }
+}
 
 App::App() {
+    sceSysmoduleLoadModule(ORBIS_SYSMODULE_LIBIME);
     OrbisUserServiceInitializeParams param;
     param.priority = ORBIS_KERNEL_PRIO_FIFO_LOWEST;
     sceUserServiceInitialize(&param);
@@ -15,35 +26,6 @@ App::App() {
 App::~App() {
     LOG_INFO("App stopped.");
     sceSystemServiceLoadExec("EXIT", nullptr);
-}
-
-void App::Run() {
-    use_font = false;
-
-    InitGraphics();
-    InitFont();
-
-    while (HandleControllerInput()) {
-        FrameStart();
-        DrawDemo();
-        FrameEnd();
-    }
-}
-
-void App::InitGraphics() {
-    scene = new Scene2D(1920, 1080, 4);
-    ASSERT_MSG(scene->Init(0xC000000, 2), "Failed to initialize 2D scene");
-}
-
-void App::InitFont() {
-    if (!use_font) {
-        return;
-    }
-    ASSERT_OK(scene->InitFontLib());
-    std::string font_path =
-        fmt::format("/{}/common/font/DFHEI5-SONY.ttf", sceKernelGetFsSandboxRandomWord());
-    ASSERT_MSG(scene->InitFont(&font, font_path.c_str(), 80) && font != nullptr,
-               "Failed to init font");
 }
 
 bool App::HandleControllerInput() {
@@ -67,31 +49,33 @@ bool App::HandleControllerInput() {
         return false;
     }
     if (is_button_pressed(OrbisPadButton::ORBIS_PAD_BUTTON_SQUARE)) {
-        if (!use_font) {
-            use_font = true;
-            InitFont();
-        }
+        state.eye = 1 - state.eye;
     }
     return true;
 }
 
-void App::FrameStart() {
-    scene->FrameBufferClear();
-}
-
-void App::FrameEnd() {
-    scene->SubmitFlip();
-    scene->FrameWait();
-    scene->FrameBufferSwap();
-}
-
-
 void App::DrawDemo() {
-    scene->DrawRectangle(100, 100, 200, 200, {0, 0, 0});
-    scene->DrawRectangle(120, 120, 160, 160, {255, 128, 128});
-    scene->DrawRectangle(140, 140, 120, 120, {0, 0, 0});
+    renderer.scene->DrawRectangle(100, 100, 200, 200, {0, 0, 0});
+    renderer.scene->DrawRectangle(120, 120, 160, 160, {255, 128, 128});
+    renderer.scene->DrawRectangle(140, 140, 120, 120, {0, 0, 0});
     if (!use_font) {
         return;
     }
-    scene->DrawText("Hello, Screen!", font, 400, 220, {50, 50, 50}, {0, 0, 255});
+    renderer.scene->DrawText("Hello, Screen!", renderer.font, 400, 220, {50, 50, 50}, {0, 0, 255});
+}
+
+void App::DrawCameraImage() {
+    if (camera.handle == 0) {
+        DrawPlaceholderCameraImage();
+        return;
+    }
+    static Image left_eye{}, right_eye{};
+    camera.RenderEyeToImage(0, 1280, 800, left_eye);
+    camera.RenderEyeToImage(1, 1280, 800, right_eye);
+    renderer.DrawImage(left_eye, 0, 0);
+    renderer.DrawImage(right_eye, 640, 280);
+}
+
+void App::DrawPlaceholderCameraImage() {
+    renderer.scene->DrawRectangle(0, 0, 1280, 800, {0, 0, 0});
 }
