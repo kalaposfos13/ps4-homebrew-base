@@ -30,4 +30,5 @@ int32_t sceHmdInitialize(const OrbisHmdInitializeParam* param);
 int32_t sceHmdGetDeviceInformation(
 	OrbisHmdDeviceInformation *info
 );
+int sceHmdTerminate();
 }

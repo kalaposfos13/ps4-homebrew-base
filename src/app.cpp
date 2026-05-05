@@ -36,6 +36,7 @@ App::App() {
 
 App::~App() {
     LOG_INFO("App stopped.");
+    sceHmdTerminate();
     sceSystemServiceLoadExec("EXIT", nullptr);
 }
 
@@ -56,11 +57,23 @@ bool App::HandleControllerInput() {
         }
         return false;
     };
+    const auto is_button_down = [this](OrbisPadButton b){
+        return (pdata.buttons & b) != 0;
+    };
     if (is_button_pressed(OrbisPadButton::ORBIS_PAD_BUTTON_CIRCLE)) {
         return false;
     }
     if (is_button_pressed(OrbisPadButton::ORBIS_PAD_BUTTON_SQUARE)) {
         state.eye = 1 - state.eye;
+    }
+    if (is_button_pressed(OrbisPadButton::ORBIS_PAD_BUTTON_TRIANGLE)) {
+        scale = 1.2f;
+    }
+    if (is_button_down(OrbisPadButton::ORBIS_PAD_BUTTON_L2)) {
+        scale *= 1/1.02f;
+    }
+    if (is_button_down(OrbisPadButton::ORBIS_PAD_BUTTON_R2)) {
+        scale *= 1.02f;
     }
     return true;
 }
@@ -83,8 +96,22 @@ void App::DrawCameraImage() {
     static Image left_eye{}, right_eye{};
     camera.RenderEyeToImage(0, 1280, 800, left_eye);
     camera.RenderEyeToImage(1, 1280, 800, right_eye);
-    renderer.DrawImage(left_eye, 0, 0);
-    renderer.DrawImage(right_eye, 640, 280);
+
+    int screenW = renderer.scene->width;
+    int screenH = renderer.scene->height;
+    int halfW = screenW / 2;
+    int cropX = 0;
+    int cropY = 0;
+
+    renderer.DrawImage(right_eye, 
+        0, 0, 
+        halfW, screenH, 
+        cropX, cropX, cropY, cropY, scale);
+
+    renderer.DrawImage(left_eye, 
+        halfW, 0,
+        halfW, screenH,
+        cropX, cropX, cropY, cropY, scale);
 }
 
 void App::DrawPlaceholderCameraImage() {

@@ -36,7 +36,7 @@ public:
     FT_Library ftLib;
     int width;
     int height;
-    char** frameBuffers;
+    OrbisVideoOutStereoBuffers* frameBuffers;
     int activeFrameBufferIdx;
     int frameBufferSize;
     int frame_id;

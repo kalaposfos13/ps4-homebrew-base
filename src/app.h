@@ -39,6 +39,8 @@ public:
 
     OrbisPadData pdata{};
 
+    float scale = 1.0f;
+
     Camera camera{};
     Renderer renderer{};
     AppState state{};

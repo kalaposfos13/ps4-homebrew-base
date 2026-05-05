@@ -5,8 +5,10 @@
 
 #include <string>
 
+#include "assert.h"
 #include "graphics.h"
 #include "logging.h"
+#include "types.h"
 
 Scene2D::Scene2D(int w, int h, int pixelDepth)
     : width(w), height(h), depth(pixelDepth),
@@ -20,7 +22,12 @@ Scene2D::~Scene2D() {
     if (ftLib) {
         FT_Done_FreeType(ftLib);
     }
+    OrbisVideoOutMode reset_mode{};
+    sceVideoOutModeSetAny_(&reset_mode);
+    sceVideoOutConfigureOutputMode_(video, 0, &reset_mode, nullptr);
 }
+
+extern "C" s32 sceVideoOutGetDeviceCapabilityInfo_(s32 handle, u64* pDeviceCapabilityInfo);
 
 bool Scene2D::Init(size_t memSize, int numFrameBuffers) {
     int rc;
@@ -32,6 +39,13 @@ bool Scene2D::Init(size_t memSize, int numFrameBuffers) {
         LOG_DEBUG("Failed to open a video out handle: {}", std::string(strerror(errno)));
         return false;
     }
+
+    // doesn't work for some reason so it stays commented out,
+    // the rest of the stuff seems to work so whatever
+    // u64 capability = 0;
+    // ASSERT_OK(sceVideoOutGetDeviceCapabilityInfo_(video, &capability));
+    // LOG_INFO("Capability: {:#08x}", capability);
+    // ASSERT(capability & 32);
 
     if (!initFlipQueue()) {
         LOG_DEBUG("Failed to initialize flip queue: {}", std::string(strerror(errno)));
@@ -81,11 +95,12 @@ bool Scene2D::initFlipQueue() {
 
 bool Scene2D::allocateFrameBuffers(int num) {
     // Allocate frame buffers array
-    this->frameBuffers = new char*[num]{0};
+    this->frameBuffers = new OrbisVideoOutStereoBuffers[num]{0};
 
     // Set the display buffers
     for (int i = 0; i < num; i++) {
-        this->frameBuffers[i] = this->allocateDisplayMem(frameBufferSize);
+        this->frameBuffers[i].left = this->allocateDisplayMem(frameBufferSize);
+        this->frameBuffers[i].right = this->allocateDisplayMem(frameBufferSize);
     }
 
     // Set SRGB pixel format
@@ -93,8 +108,8 @@ bool Scene2D::allocateFrameBuffers(int num) {
                                   this->width);
 
     // Register the buffers to the video handle
-    return (sceVideoOutRegisterBuffers(this->video, 0, (void**)this->frameBuffers, num,
-                                       &this->attr) == 0);
+    return (sceVideoOutRegisterStereoBuffers(this->video, 0, this->frameBuffers, num,
+                                             &this->attr) == 0);
 }
 
 char* Scene2D::allocateDisplayMem(size_t size) {
@@ -229,7 +244,7 @@ void Scene2D::DrawPixel(int const x, int const y, Color const color) {
     }
     int pixel = (y * this->width) + x;
     uint32_t encodedColor = 0x80000000u | (color.r << 16) | (color.g << 8) | color.b;
-    ((uint32_t*)this->frameBuffers[this->activeFrameBufferIdx])[pixel] = encodedColor;
+    ((uint32_t*)this->frameBuffers[this->activeFrameBufferIdx].left)[pixel] = encodedColor;
 }
 
 void Scene2D::DrawRectangle(int const x, int const y, int const w, int const h, Color const color) {
