@@ -1,4 +1,5 @@
 #include "app.h"
+#include "orbis_hmd.h"
 
 #include <map>
 #include <utility>
@@ -13,7 +14,7 @@ void App::Run() {
 }
 
 App::App() {
-    sceSysmoduleLoadModule(ORBIS_SYSMODULE_LIBIME);
+    sceSysmoduleLoadModule(ORBIS_SYSMODULE_HMD);
     OrbisUserServiceInitializeParams param;
     param.priority = ORBIS_KERNEL_PRIO_FIFO_LOWEST;
     sceUserServiceInitialize(&param);
@@ -21,6 +22,16 @@ App::App() {
     scePadInit();
     ASSERT_NO_ERROR(pad_handle = scePadOpen(user_id, 0, 0, 0));
     LOG_INFO("userid: {}, pad handle: {:x}", user_id, pad_handle);
+
+    OrbisHmdInitializeParam hp{};
+    sceHmdInitialize(&hp);
+    OrbisHmdDeviceInformation hmd_device_info{};
+    ASSERT_OK(sceHmdGetDeviceInformation(&hmd_device_info));
+    LOG_INFO("Hmd status: {}", hmd_device_info.status);
+    if (hmd_device_info.status != 0 /* ready */) {
+        LOG_NOTIFICATION("No PSVR connected (status: {}).", hmd_device_info.status);
+        sceSystemServiceLoadExec("exit", nullptr);
+    }
 }
 
 App::~App() {

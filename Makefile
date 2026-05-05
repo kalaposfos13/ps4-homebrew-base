@@ -7,7 +7,8 @@ SDK_VERSION := 0x1000051
 
 # Libraries linked into the ELF.
 LIBS        := -lc -lkernel -lc++ -lSceSysUtil -lSceSystemService -lSceUserService -lSceCamera -lScePad \
-				-lSceVideoOut -lSceGnmDriver -lScePadTracker -lSceSysmodule -lSceMove -lSceMoveTracker -lSceFreeType
+				-lSceVideoOut -lSceGnmDriver -lScePadTracker -lSceSysmodule -lSceMove -lSceMoveTracker -lSceFreeType \
+				-lSceHmd
 
 # Additional compile flags.
 #EXTRAFLAGS  := 
