@@ -34,7 +34,7 @@ void Renderer::EndFrame() {
 }
 
 void Renderer::DrawImage(const Image& img, int x, int y) {
-    auto* fb = (uint32_t*)scene->frameBuffers[scene->activeFrameBufferIdx].left;
+    auto* fb = (uint32_t*)scene->frameBuffers[scene->activeFrameBufferIdx];
     ASSERT(fb != nullptr);
     if (img.pixels == nullptr)
         return;
@@ -54,7 +54,7 @@ void Renderer::DrawImage(const Image& img, int x, int y) {
 
 void Renderer::DrawImage(const Image& img, int dstX, int dstY, int dstW, int dstH, int cropL,
                          int cropR, int cropT, int cropB, float zoom) {
-    auto* fb = (uint32_t*)scene->frameBuffers[scene->activeFrameBufferIdx].left;
+    auto* fb = (uint32_t*)scene->frameBuffers[scene->activeFrameBufferIdx];
     ASSERT(fb != nullptr);
     if (!img.pixels)
         return;
