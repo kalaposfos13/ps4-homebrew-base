@@ -1,7 +1,7 @@
 # Package metadata.
-TITLE       := starting homebrew
+TITLE       := head mounted camera
 VERSION     := 0.01
-TITLE_ID    := KALA00001
+TITLE_ID    := KALA00016
 CONTENT_ID  := IV0000-$(TITLE_ID)_00-HOMEBREW00000000
 SDK_VERSION := 0x1000051
 
