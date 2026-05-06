@@ -1,5 +1,10 @@
 #include <orbis/Sysmodule.h>
-#include <orbis/VideoOut.h>
+
+#include <orbis/_types/errors.h>
+#include <orbis/_types/kernel.h>
+#include <orbis/_types/user.h>
+#include <orbis/_types/video.h>
+
 #include <orbis/libkernel.h>
 #include <stdint.h>
 
@@ -7,6 +12,49 @@
 #define GRAPHICS_H
 
 #include <proto-include.h>
+
+typedef struct OrbisVideoOutStereoBuffers {
+    void* left;
+    void* right;
+} OrbisVideoOutStereoBuffers;
+
+typedef struct {
+    uint32_t size;
+    uint8_t signalEncoding;
+    uint8_t signalRange;
+    uint8_t colorimetry;
+    uint8_t depth;
+    uint64_t refreshRate;
+    uint64_t resolution;
+    uint8_t contentType;
+    uint8_t _reserved0[3];
+    uint32_t _reserved[1];
+} OrbisVideoOutMode;
+
+extern "C" {
+
+int32_t sceVideoOutOpen(OrbisUserServiceUserId, int32_t, int32_t, const void*);
+int32_t sceVideoOutClose(int32_t);
+// need to port sceVideoOutBufferAttribute (last arg)
+int32_t sceVideoOutRegisterBuffers(int32_t, int32_t, void* const*, int32_t,
+                                   const OrbisVideoOutBufferAttribute*);
+int32_t sceVideoOutUnregisterBuffers(int32_t, int);
+int32_t sceVideoOutSubmitFlip(int32_t, int32_t, uint32_t, int64_t);
+void sceVideoOutSetBufferAttribute(void*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                   uint32_t);
+int32_t sceVideoOutSetFlipRate(int32_t handle, int32_t fliprate);
+int32_t sceVideoOutAddFlipEvent(OrbisKernelEqueue, int32_t, void*);
+int32_t sceVideoOutGetFlipStatus(int32_t, OrbisVideoOutFlipStatus*);
+int32_t sceVideoOutIsFlipPending(int32_t);
+int32_t sceVideoOutGetResolutionStatus(int32_t, OrbisVideoOutResolutionStatus* status);
+
+void sceVideoOutConfigureOutputMode_(int32_t, uint32_t, OrbisVideoOutMode const* pMode, void*);
+// void sceVideoOutGetDeviceCapabilityInfo_();
+void sceVideoOutModeSetAny_(OrbisVideoOutMode*);
+int sceVideoOutRegisterStereoBuffers(int32_t handle, int32_t startIndex,
+                                     const OrbisVideoOutStereoBuffers* buffers, int32_t bufferNum,
+                                     const OrbisVideoOutBufferAttribute* attribute);
+}
 
 // Color is used to pack together RGB information, and is used for every function that draws colored
 // pixels.
