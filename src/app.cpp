@@ -54,8 +54,8 @@ void DrawRAW16Frame(Scene2D* scene, void* rawBuffer, int width, int height) {
     const u16* src = static_cast<const u16*>(rawBuffer);
     u32* dst = reinterpret_cast<u32*>(scene->frameBuffers[scene->activeFrameBufferIdx]);
 
-    for (int y = 0; y < height - 1; y += 3) {
-        for (int x = 0; x < width - 1; x += 3) {
+    for (int y = 0; y < height - 1; y += 1) {
+        for (int x = 0; x < width - 1; x += 1) {
             int idx = y * width + x;
 
             bool evenRow = (y % 2) == 0;
@@ -138,7 +138,7 @@ App::App() {
     sceUserServiceGetInitialUser(&user_id);
     scePadInit();
     ASSERT_NO_ERROR(pad_handle = scePadOpen(user_id, 0, 0, 0));
-    LOG_INFO("userid: {}, pad handle: {:x}", user_id, pad_handle);
+    LOG_INFO("userid: {}, pad handle: {}", user_id, pad_handle);
 
     int frameID = 0;
     scene = new Scene2D(1920, 1080, 4);
@@ -162,6 +162,7 @@ App::~App() {
 void App::InitCamera() {
     if (sceCameraIsAttached(0) != 1) {
         LOG_NOTIFICATION("Please connect the PlayStation Camera.");
+        return;
     }
     while (sceCameraIsAttached(0) != 1) {
         LOG_INFO("Please connect the PlayStation Camera.");
@@ -212,6 +213,8 @@ void App::InitCamera() {
 void App::InitPadTracker() {
     LOG_INFO("Setting up pad tracker");
     sceCameraGetExposureGain(camera_handle, 1, &exposuregain, nullptr);
+    LOG_INFO("eg: {} {} {} {}", exposuregain.exposureControl, exposuregain.exposure,
+             exposuregain.gain, exposuregain.mode);
 
     pt_input.handles[0] = pad_handle;
     pt_input.handles[1] = -1;
@@ -279,6 +282,9 @@ void App::InitMoveTracker() {
 static int dump_next_camera_frame_id = -1;
 
 bool App::UpdateCamera() {
+    if (!camera_handle && use_dumped_frame) {
+        return true;
+    }
     if (sceCameraGetFrameData(camera_handle, &frame_data) != ORBIS_OK) {
         sceKernelUsleep(10000);
         return false;
@@ -472,7 +478,7 @@ void App::DrawDebugStuff() {
     std::string debug_text1 = fmt::format("pad2: {:08}", pdata.touch.pad2);
     scene->DrawText(debug_text1.c_str(), font, 1500, 850, {0, 0, 0}, {255, 0, 255});
 #else
-    LOG_INFO("pad2: {:08}", pdata.touch.pad2);
+    // LOG_INFO("pad2: {:08}", pdata.touch.pad2);
 #endif
 }
 

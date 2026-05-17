@@ -2,7 +2,7 @@
 
 int main(void) {
     App app{};
-    app.use_dumped_frame = false;
+    app.use_dumped_frame = true;
     app.InitCamera();
     app.InitPadTracker();
     // app.InitMoveTracker();

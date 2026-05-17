@@ -71,15 +71,13 @@ public:
     OrbisMoveData m_data[ORBIS_MOVE_MAX_CONTROLLERS]{};
     OrbisMoveTrackerControllerInput mt_controllers[ORBIS_MOVE_MAX_CONTROLLERS]{};
     OrbisMoveTrackerState mt_state{};
-    OrbisCameraExposureGain exposuregain{};
+    OrbisCameraExposureGain exposuregain{1, 20, 100, 0};
 
     Scene2D* scene{};
     AppState state{};
 #ifdef GRAPHICS_USES_FONT
     FT_Face font{};
 #endif
-
-    OrbisCameraExposureGain exposure_gain{};
 
     OrbisPadTrackerInput pad_input{};
     OrbisPadTrackerData pad_output{};
