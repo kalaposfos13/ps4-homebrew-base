@@ -25,8 +25,6 @@ public:
     ~App();
 
     void Run();
-    void DrawCameraImage();
-    void DrawPlaceholderCameraImage();
 
     void DrawDemo();
 
@@ -39,7 +37,6 @@ public:
 
     OrbisPadData pdata{};
 
-    Camera camera{};
     Renderer renderer{};
     AppState state{};
 };

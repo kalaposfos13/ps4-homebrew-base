@@ -5,9 +5,7 @@
 
 void App::Run() {
     while (HandleControllerInput()) {
-        camera.Update();
         renderer.BeginFrame();
-        DrawCameraImage();
         renderer.EndFrame();
     }
 }
@@ -62,20 +60,4 @@ void App::DrawDemo() {
         return;
     }
     renderer.scene->DrawText("Hello, Screen!", renderer.font, 400, 220, {50, 50, 50}, {0, 0, 255});
-}
-
-void App::DrawCameraImage() {
-    if (camera.handle == 0) {
-        DrawPlaceholderCameraImage();
-        return;
-    }
-    static Image left_eye{}, right_eye{};
-    camera.RenderEyeToImage(0, 1280, 800, left_eye);
-    camera.RenderEyeToImage(1, 1280, 800, right_eye);
-    renderer.DrawImage(left_eye, 0, 0);
-    renderer.DrawImage(right_eye, 640, 280);
-}
-
-void App::DrawPlaceholderCameraImage() {
-    renderer.scene->DrawRectangle(0, 0, 1280, 800, {0, 0, 0});
 }
