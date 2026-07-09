@@ -66,6 +66,7 @@ int PS4_SYSV_ABI sceAudioInVmicWrite();
 class Microphone {
 public:
     Microphone();
+    void Init(s32 uid);
     ~Microphone();
     void BeginRecording();
     void EndRecording();

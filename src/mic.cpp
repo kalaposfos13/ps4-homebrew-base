@@ -8,11 +8,14 @@
 extern "C" int pthread_rename_np(pthread_t thread, const char* name);
 
 Microphone::Microphone() {
-    s32 uid;
-    sceUserServiceGetInitialUser(&uid);
+}
+
+
+void Microphone::Init(s32 uid) {
     ASSERT_NO_ERROR(handle = sceAudioInHqOpen(uid, 1, 0, 128, 48000, 2));
     // 5 seconds of 48khz stereo data is a sensible baseline imo
     recorded_data.resize(48000 * 5 * 2);
+
 }
 
 Microphone::~Microphone() {

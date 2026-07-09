@@ -18,6 +18,7 @@ App::App() {
     sceUserServiceGetInitialUser(&user_id);
     LOG_INFO("userid: {:#x}", user_id);
     pad.Init(user_id);
+    mic.Init(user_id);
 }
 
 App::~App() {
