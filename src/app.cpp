@@ -19,6 +19,7 @@ App::App() {
     LOG_INFO("userid: {:#x}", user_id);
     pad.Init(user_id);
     mic.Init(user_id);
+    audio.Init(user_id);
 }
 
 App::~App() {
@@ -39,6 +40,10 @@ bool App::HandleControllerInput() {
         } else {
             mic.EndRecording();
         }
+    }
+    if (pad.IsPressed(OrbisPadButton::ORBIS_PAD_BUTTON_CROSS)) {
+        LOG_INFO("Playing {} samples back", mic.recorded_data.size());
+        audio.PlaySound(mic.recorded_data.data(), mic.recorded_data.size());
     }
     return true;
 }

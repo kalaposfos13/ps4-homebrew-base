@@ -15,7 +15,7 @@ set(LIBS
     c c++ kernel
     SceSysUtil SceSystemService SceUserService ScePad
     SceVideoOut SceGnmDriver SceSysmodule SceFreeType
-    SceCamera SceAudioIn
+    SceCamera SceAudioIn SceAudioOut
 )
 
 # =========================================================

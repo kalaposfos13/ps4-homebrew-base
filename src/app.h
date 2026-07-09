@@ -1,10 +1,10 @@
 #pragma once
 
 #include "assert.h"
+#include "camera.h"
 #include "graphics.h"
 #include "logging.h"
 #include "types.h"
-#include "camera.h"
 
 #include <orbis/Pad.h>
 #include <orbis/Sysmodule.h>
@@ -13,9 +13,10 @@
 #include <orbis/libkernel.h>
 
 #include <cstdlib>
-#include "renderer.h"
+#include "audio.h"
 #include "mic.h"
 #include "pad.h"
+#include "renderer.h"
 
 struct AppState {
     s32 eye = 0;
@@ -40,6 +41,7 @@ public:
     OrbisPadData pdata{};
 
     Microphone mic{};
+    Audio audio{};
     Renderer renderer{};
     AppState state{};
 };

@@ -70,7 +70,6 @@ public:
     ~Microphone();
     void BeginRecording();
     void EndRecording();
-    u8* ReadPacket();
     s32 handle;
     std::vector<s16> recorded_data{};
     s16 input_bufs[2][768];
