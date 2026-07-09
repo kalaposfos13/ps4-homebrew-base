@@ -6,9 +6,9 @@ project(MICE LANGUAGES C CXX)
 # USER CONFIG
 # =========================================================
 
-set(APP_TITLE "example homebrew project")
+set(APP_TITLE "at9enc")
 set(APP_VERSION "0.01")
-set(APP_TITLE_ID "KALA00001")
+set(APP_TITLE_ID "KALA00018")
 set(SDK_VERSION 0x02000001)
 
 set(LIBS
