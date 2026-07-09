@@ -14,6 +14,8 @@
 
 #include <cstdlib>
 #include "renderer.h"
+#include "mic.h"
+#include "pad.h"
 
 struct AppState {
     s32 eye = 0;
@@ -33,10 +35,11 @@ public:
     bool use_font = false;
 
     s32 user_id{};
-    s32 pad_handle{};
+    Pad pad{};
 
     OrbisPadData pdata{};
 
+    Microphone mic{};
     Renderer renderer{};
     AppState state{};
 };

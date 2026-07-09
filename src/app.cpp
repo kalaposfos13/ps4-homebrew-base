@@ -16,9 +16,8 @@ App::App() {
     param.priority = ORBIS_KERNEL_PRIO_FIFO_LOWEST;
     sceUserServiceInitialize(&param);
     sceUserServiceGetInitialUser(&user_id);
-    scePadInit();
-    ASSERT_NO_ERROR(pad_handle = scePadOpen(user_id, 0, 0, 0));
-    LOG_INFO("userid: {}, pad handle: {:x}", user_id, pad_handle);
+    LOG_INFO("userid: {:#x}", user_id);
+    pad.Init(user_id);
 }
 
 App::~App() {
@@ -27,27 +26,18 @@ App::~App() {
 }
 
 bool App::HandleControllerInput() {
-    scePadReadState(pad_handle, &pdata);
-    static std::map<OrbisPadButton, bool> btn_pressed{};
-    auto is_button_pressed = [&, this](OrbisPadButton b) {
-        if (!btn_pressed.contains(b)) {
-            btn_pressed[b] = false;
-        }
-        if ((pdata.buttons & b) != 0) {
-            if (!btn_pressed[b]) {
-                btn_pressed[b] = true;
-                return true;
-            }
-        } else {
-            btn_pressed[b] = false;
-        }
-        return false;
-    };
-    if (is_button_pressed(OrbisPadButton::ORBIS_PAD_BUTTON_CIRCLE)) {
+    pad.Update();
+    if (pad.IsPressed(OrbisPadButton::ORBIS_PAD_BUTTON_CIRCLE)) {
         return false;
     }
-    if (is_button_pressed(OrbisPadButton::ORBIS_PAD_BUTTON_SQUARE)) {
-        state.eye = 1 - state.eye;
+    if (pad.IsPressed(OrbisPadButton::ORBIS_PAD_BUTTON_SQUARE)) {
+        static bool on_state = false;
+        on_state ^= true;
+        if (on_state) {
+            mic.BeginRecording();
+        } else {
+            mic.EndRecording();
+        }
     }
     return true;
 }
