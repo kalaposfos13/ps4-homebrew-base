@@ -201,7 +201,7 @@ int main(int argc, char** argv) {
 
     OrbisKernelStat s;
     std::vector<char const*> video_paths = {
-        "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+        "http://cam.idokep.hu/live/dmjvcam3/live-468a5df6c9.m3u8",
     };
     if (argc > 1 && sceKernelStat(argv[1], &s) == 0) {
         play_video_uri(argv[1]);
