@@ -6,9 +6,9 @@ project(MICE LANGUAGES C CXX)
 # USER CONFIG
 # =========================================================
 
-set(APP_TITLE "example homebrew project")
+set(APP_TITLE "AvPlayer HLS")
 set(APP_VERSION "0.01")
-set(APP_TITLE_ID "KALA00001")
+set(APP_TITLE_ID "KALA00019")
 set(SDK_VERSION 0x03500001)
 
 set(LIBS
