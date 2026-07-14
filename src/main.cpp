@@ -135,8 +135,8 @@ void play_video_file(char const* path) {
         }
 
         // Submit the frame buffer
-        scene->SubmitFlip(frameID);
-        scene->FrameWait(frameID);
+        scene->SubmitFlip();
+        scene->FrameWait();
 
         // Swap to the next buffer
         scene->FrameBufferSwap();

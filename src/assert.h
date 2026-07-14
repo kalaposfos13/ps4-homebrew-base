@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include <iostream>
+#include "logging.h"
 
 // Sometimes we want to try to continue even after hitting an assert.
 // However touching this file yields a global recompilation as this header is included almost
@@ -12,7 +12,6 @@
 
 void assert_fail_impl();
 [[noreturn]] void unreachable_impl();
-
 
 #ifdef _MSC_VER
 #define SHAD_NO_INLINE __declspec(noinline)
@@ -23,15 +22,31 @@ void assert_fail_impl();
 #define ASSERT(_a_)                                                                                \
     ([&]() SHAD_NO_INLINE {                                                                        \
         if (!(_a_)) [[unlikely]] {                                                                 \
-            LOG_CRITICAL("Assertion failed!");                                                     \
+            LOG_CRITICAL("Assertion failed!\n" #_a_ " is false");                                  \
             assert_fail_impl();                                                                    \
         }                                                                                          \
     }())
 
+#define ASSERT_OK(_a_)                                                                             \
+    ([&]() SHAD_NO_INLINE {                                                                        \
+        auto _r_ = _a_;                                                                            \
+        if (_r_ != 0) [[unlikely]] {                                                               \
+            LOG_CRITICAL("Assertion failed!\n" #_a_ " returned {:#x}", (u32)_r_);                  \
+            assert_fail_impl();                                                                    \
+        }                                                                                          \
+    }())
+#define ASSERT_NO_ERROR(_a_)                                                                             \
+    ([&]() SHAD_NO_INLINE {                                                                        \
+        auto _r_ = _a_;                                                                            \
+        if (_r_ < 0) [[unlikely]] {                                                               \
+            LOG_CRITICAL("Assertion failed!\n" #_a_ " returned {:#x}", (u32)_r_);                  \
+            assert_fail_impl();                                                                    \
+        }                                                                                          \
+    }())
 #define ASSERT_MSG(_a_, ...)                                                                       \
     ([&]() SHAD_NO_INLINE {                                                                        \
         if (!(_a_)) [[unlikely]] {                                                                 \
-            LOG_CRITICAL("Assertion failed!!\n" __VA_ARGS__);                                      \
+            LOG_CRITICAL("Assertion failed!\n" __VA_ARGS__);                                      \
             assert_fail_impl();                                                                    \
         }                                                                                          \
     }())

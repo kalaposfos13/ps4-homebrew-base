@@ -11,3 +11,6 @@ output.txt
 oneshots
 pkgs
 !./assets/videos/video_short.mp4
+videos
+build
+frame_dump*
