@@ -3,7 +3,10 @@
 #include <vector>
 #include <fcntl.h>
 #include "orbis/AudioOut.h"
+#include "orbis/Http.h"
+#include "orbis/Net.h"
 #include "orbis/Pad.h"
+#include "orbis/Ssl.h"
 #include "orbis/SystemService.h"
 #include "orbis/UserService.h"
 #include "orbis/libkernel.h"
@@ -26,7 +29,7 @@ void render_video_frame(Scene2D* scene, const AvPlayerFrameInfo& frame) {
     uint32_t* dst = reinterpret_cast<uint32_t*>(scene->frameBuffers[scene->activeFrameBufferIdx]);
 
     // fixed-point BT.601 limited-range YUV → RGB (scaled by 1024)
-    constexpr int cY  = 1192; // 1.164 * 1024
+    constexpr int cY = 1192;   // 1.164 * 1024
     constexpr int cR_V = 1634; // 1.596 * 1024
     constexpr int cG_U = 400;  // 0.392 * 1024
     constexpr int cG_V = 833;  // 0.813 * 1024
@@ -75,7 +78,7 @@ void render_video_frame(Scene2D* scene, const AvPlayerFrameInfo& frame) {
     }
 }
 
-void play_video_file(char const* path) {
+void play_video_uri(char const* path) {
     LOG_INFO("Playing {}", path);
     u32 ret;
 
@@ -87,6 +90,18 @@ void play_video_file(char const* path) {
     if (!av_player_handle) {
         LOG_ERROR("sceAvPlayerInit returned an error.");
         return;
+    }
+    if (std::string(path).starts_with("http")) {
+        int netMemId, sslCtxId, httpCtxId;
+        sceNetInit();
+        netMemId = sceNetPoolCreate("netPool", 10_MB, 0);
+        sslCtxId = sceSslInit(10_MB);
+        httpCtxId = sceHttpInit(netMemId, sslCtxId, 10_MB);
+        AvPlayerPostInitData playerPostInit;
+        memset(&playerPostInit, 0, sizeof(playerPostInit));
+        playerPostInit.http_context.http_context_id = httpCtxId;
+        playerPostInit.http_context.ssl_context_id = sslCtxId;
+        sceAvPlayerPostInit(av_player_handle, &playerPostInit);
     }
     ret = sceAvPlayerAddSource(av_player_handle, path);
     if (ret) {
@@ -186,16 +201,14 @@ int main(int argc, char** argv) {
 
     OrbisKernelStat s;
     std::vector<char const*> video_paths = {
-        "/data/homebrew/video.mp4",
-        "/app0/assets/videos/video.mp4",
-        "/app0/assets/videos/video_short.mp4",
+        "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
     };
     if (argc > 1 && sceKernelStat(argv[1], &s) == 0) {
-        play_video_file(argv[1]);
+        play_video_uri(argv[1]);
     } else {
         for (auto const& path : video_paths) {
-            if (sceKernelStat(path, &s) == 0) {
-                play_video_file(path);
+            if (sceKernelStat(path, &s) == 0 || std::string(path).starts_with("http")) {
+                play_video_uri(path);
             }
         }
     }

@@ -9,13 +9,13 @@ project(MICE LANGUAGES C CXX)
 set(APP_TITLE "example homebrew project")
 set(APP_VERSION "0.01")
 set(APP_TITLE_ID "KALA00001")
-set(SDK_VERSION 0x02000001)
+set(SDK_VERSION 0x03500001)
 
 set(LIBS
     c c++ kernel
     SceSysUtil SceSystemService SceUserService ScePad
     SceVideoOut SceGnmDriver SceSysmodule SceFreeType
-    SceCamera SceAudioOut SceAvPlayer
+    SceCamera SceAudioOut SceAvPlayer SceNet SceHttp SceSsl
 )
 
 # =========================================================
