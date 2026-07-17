@@ -15,6 +15,13 @@ Scene2D::Scene2D(int w, int h, int pixelDepth)
       frameBuffers(nullptr), activeFrameBufferIdx(0), video(0), videoMem(nullptr), videoMemSP(0),
       directMemOff(0), directMemAllocationSize(0) {}
 
+Scene2D::~Scene2D() {
+    deallocateVideoMem();
+    if (ftLib) {
+        FT_Done_FreeType(ftLib);
+    }
+}
+
 bool Scene2D::Init(size_t memSize, int numFrameBuffers) {
     int rc;
 
@@ -25,23 +32,6 @@ bool Scene2D::Init(size_t memSize, int numFrameBuffers) {
         LOG_DEBUG("Failed to open a video out handle: {}", std::string(strerror(errno)));
         return false;
     }
-
-#ifdef GRAPHICS_USES_FONT
-    // Load freetype
-    rc = sceSysmoduleLoadModule(ORBIS_SYSMODULE_FREETYPE_OL);
-
-    if (rc < 0) {
-        LOG_DEBUG("Failed to load freetype: {}", std::string(strerror(errno)));
-        return false;
-    }
-    // Initialize freetype
-    rc = FT_Init_FreeType(&this->ftLib);
-
-    if (rc != 0) {
-        LOG_DEBUG("Failed to initialize freetype: {}", std::string(strerror(errno)));
-        return false;
-    }
-#endif
 
     if (!initFlipQueue()) {
         LOG_DEBUG("Failed to initialize flip queue: {}", std::string(strerror(errno)));
@@ -60,6 +50,23 @@ bool Scene2D::Init(size_t memSize, int numFrameBuffers) {
 
     sceVideoOutSetFlipRate(this->video, 0);
     return true;
+}
+
+int Scene2D::InitFontLib() {
+    // Load freetype
+    int rc = sceSysmoduleLoadModule(ORBIS_SYSMODULE_FREETYPE_OL);
+    if (rc < 0) {
+        LOG_DEBUG("Failed to load freetype: {}", std::string(strerror(errno)));
+        return ORBIS_FAIL;
+    }
+    // Initialize freetype
+    rc = FT_Init_FreeType(&this->ftLib);
+
+    if (rc != 0) {
+        LOG_DEBUG("Failed to initialize freetype: {}", std::string(strerror(errno)));
+        return ORBIS_FAIL;
+    }
+    return ORBIS_OK;
 }
 
 bool Scene2D::initFlipQueue() {
@@ -115,8 +122,8 @@ bool Scene2D::allocateVideoMem(size_t size, int alignment) {
     }
 
     // Map the direct memory
-    rc = sceKernelMapDirectMemory(&this->videoMem, this->directMemAllocationSize, 0x33,
-                                  0, this->directMemOff, alignment);
+    rc = sceKernelMapDirectMemory(&this->videoMem, this->directMemAllocationSize, 0x33, 0,
+                                  this->directMemOff, alignment);
 
     if (rc < 0) {
         sceKernelReleaseDirectMemory(this->directMemOff, this->directMemAllocationSize);
@@ -155,12 +162,12 @@ void Scene2D::SetActiveFrameBuffer(int index) {
     this->activeFrameBufferIdx = index;
 }
 
-void Scene2D::SubmitFlip(int frameID) {
+void Scene2D::SubmitFlip() {
     sceVideoOutSubmitFlip(this->video, this->activeFrameBufferIdx, ORBIS_VIDEO_OUT_FLIP_VSYNC,
-                          frameID);
+                          frame_id);
 }
 
-void Scene2D::FrameWait(int frameID) {
+void Scene2D::FrameWait() {
     OrbisKernelEvent evt;
     int count;
 
@@ -175,13 +182,14 @@ void Scene2D::FrameWait(int frameID) {
         // Get the flip status and check the arg for the given frame ID
         sceVideoOutGetFlipStatus(video, &flipStatus);
 
-        if (flipStatus.flipArg == frameID)
+        if (flipStatus.flipArg == frame_id)
             break;
 
         // Wait on next flip event
         if (sceKernelWaitEqueue(this->flipQueue, &evt, 1, &count, 0) != 0)
             break;
     }
+    frame_id++;
 }
 
 void Scene2D::FrameBufferSwap() {
@@ -195,7 +203,6 @@ void Scene2D::FrameBufferClear() {
     FrameBufferFill(blank);
 }
 
-#ifdef GRAPHICS_USES_FONT
 bool Scene2D::InitFont(FT_Face* face, const char* fontPath, int fontSize) {
     int rc;
 
@@ -211,21 +218,25 @@ bool Scene2D::InitFont(FT_Face* face, const char* fontPath, int fontSize) {
 
     return true;
 }
-#endif
 
 void Scene2D::FrameBufferFill(Color color) {
     DrawRectangle(0, 0, this->width, this->height, color);
 }
 
-void Scene2D::DrawPixel(int x, int y, Color color) {
-
+void Scene2D::DrawPixel(int const x, int const y, Color const color) {
+    if (x < 0 || y < 0 || x > width || y > height) {
+        return;
+    }
     int pixel = (y * this->width) + x;
     uint32_t encodedColor = 0x80000000u | (color.r << 16) | (color.g << 8) | color.b;
     ((uint32_t*)this->frameBuffers[this->activeFrameBufferIdx])[pixel] = encodedColor;
 }
 
-void Scene2D::DrawRectangle(int x, int y, int w, int h, Color color) {
+void Scene2D::DrawRectangle(int const x, int const y, int const w, int const h, Color const color) {
     int xPos, yPos;
+    if (x < 0 || y < 0 || x + w > width || y + h > height) {
+        return;
+    }
 
     // Draw row-by-row, column-by-column
     for (yPos = y; yPos < y + h; yPos++) {
@@ -235,7 +246,80 @@ void Scene2D::DrawRectangle(int x, int y, int w, int h, Color color) {
     }
 }
 
-#ifdef GRAPHICS_USES_FONT
+void Scene2D::DrawRectangleWithBorder(int const x, int const y, int const w, int const h,
+                                      Color const color, int const b_w, Color const b_color) {
+    int xPos, yPos;
+    // top
+    for (yPos = y; yPos < y + b_w; yPos++) {
+        for (xPos = x; xPos < x + w; xPos++) {
+            DrawPixel(xPos, yPos, b_color);
+        }
+    }
+    // bottom
+    for (yPos = y + h - b_w; yPos < y + h; yPos++) {
+        for (xPos = x; xPos < x + w; xPos++) {
+            DrawPixel(xPos, yPos, b_color);
+        }
+    }
+    // left
+    for (yPos = y + b_w; yPos < y + h - b_w; yPos++) {
+        for (xPos = x; xPos < x + b_w; xPos++) {
+            DrawPixel(xPos, yPos, b_color);
+        }
+    }
+    // right
+    for (yPos = y + b_w; yPos < y + h - b_w; yPos++) {
+        for (xPos = x + w - b_w; xPos < x + w; xPos++) {
+            DrawPixel(xPos, yPos, b_color);
+        }
+    }
+    // center
+    for (yPos = y + b_w; yPos < y + h - b_w; yPos++) {
+        for (xPos = x + b_w; xPos < x + w - b_w; xPos++) {
+            DrawPixel(xPos, yPos, color);
+        }
+    }
+}
+
+void Scene2D::DrawLine(int const p1x, int const p1y, int const dx, int const dy, int const w,
+                       Color const c) {
+
+    int p2x = p1x + dx;
+    int p2y = p1y + dy;
+    int adx = abs(dx);
+    int ady = -abs(dy);
+
+    int sx = dx >= 0 ? 1 : -1;
+    int sy = dy >= 0 ? 1 : -1;
+
+    int err = adx + ady;
+
+    int x = p1x;
+    int y = p1y;
+
+    while (true) {
+        for (int oy = -w / 2; oy <= w / 2; ++oy) {
+            for (int ox = -w / 2; ox <= w / 2; ++ox) {
+                DrawPixel(x + ox, y + oy, c);
+            }
+        }
+
+        if (x == p2x && y == p2y)
+            break;
+
+        int e2 = 2 * err;
+
+        if (e2 >= ady) {
+            err += ady;
+            x += sx;
+        }
+        if (e2 <= adx) {
+            err += adx;
+            y += sy;
+        }
+    }
+}
+
 void Scene2D::DrawText(char const* txt, FT_Face face, int startX, int startY, Color bgColor,
                        Color fgColor) {
     int rc;
@@ -306,4 +390,3 @@ void Scene2D::DrawText(char const* txt, FT_Face face, int startX, int startY, Co
         xOffset += slot->advance.x >> 6;
     }
 }
-#endif
