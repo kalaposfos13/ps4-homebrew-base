@@ -19,5 +19,10 @@ public:
 
     s32 handle{};
     OrbisCameraFrameData frame{};
-    OrbisCameraExposureGain exposuregain{};
+    OrbisCameraExposureGain exposuregain{
+        .exposureControl = 0,
+        .exposure = 20,
+        .gain = 100,
+        .mode = 0,
+    };
 };

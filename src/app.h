@@ -7,6 +7,7 @@
 #include "logging.h"
 #include "movetracker.h"
 #include "padtracker.h"
+#include "renderer.h"
 #include "types.h"
 
 #include <orbis/Pad.h>
@@ -54,30 +55,25 @@ public:
     void DrawDebugStuff();
     void DrawLoadingFrame();
 
-    bool use_dumped_frame = false;
+    bool use_dumped_frame = true;
     void* dumped_frame_buf[2]{};
 
     s32 user_id{};
-    s32 camera_handle{};
     s32 pad_handle{};
     s32 move_handle{};
-    s32 frame_id{};
 
     OrbisPadData pdata{};
-    OrbisCameraFrameData frame_data{};
     OrbisPadTrackerInput pt_input{};
     OrbisPadTrackerData pt_output{};
     OrbisMoveTrackerImage mt_images[ORBIS_MOVE_MAX_IMAGES]{};
     OrbisMoveData m_data[ORBIS_MOVE_MAX_CONTROLLERS]{};
     OrbisMoveTrackerControllerInput mt_controllers[ORBIS_MOVE_MAX_CONTROLLERS]{};
     OrbisMoveTrackerState mt_state{};
-    OrbisCameraExposureGain exposuregain{1, 20, 100, 0};
 
-    Scene2D* scene{};
+    Renderer renderer{};
     AppState state{};
-#ifdef GRAPHICS_USES_FONT
     FT_Face font{};
-#endif
+    Camera camera{};
 
     OrbisPadTrackerInput pad_input{};
     OrbisPadTrackerData pad_output{};
