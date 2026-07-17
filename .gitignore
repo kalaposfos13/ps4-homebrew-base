@@ -13,3 +13,4 @@ pkgs
 videos
 build
 frame_dump*
+!assets/**/**
