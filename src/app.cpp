@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <fstream>
 
-const char* dump_path[2] = {"/data/homebrew/frame_dump1.bin", "/data/homebrew/frame_dump2.bin"};
+const char* dump_path[2] = {"/app0/assets/images/frame_dump1.bin", "/app0/assets/images/frame_dump2.bin"};
 
 enum MemoryProt : u32 {
     NoAccess = 0,
