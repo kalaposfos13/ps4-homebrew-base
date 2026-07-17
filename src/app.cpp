@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <fstream>
 
-const char* dump_path[2] = {"/app0/assets/images/frame_dump1.bin", "/app0/assets/images/frame_dump2.bin"};
+const char* dump_path[2] = {"/data/homebrew/frame_dump1.bin", "/data/homebrew/frame_dump2.bin"};
 
 enum MemoryProt : u32 {
     NoAccess = 0,
@@ -62,17 +62,6 @@ App::~App() {
 }
 
 void App::InitCamera() {
-    if (sceCameraIsAttached(0) != 1) {
-        LOG_NOTIFICATION("Please connect the PlayStation Camera.");
-        return;
-    }
-    while (sceCameraIsAttached(0) != 1) {
-        LOG_INFO("Please connect the PlayStation Camera.");
-        sceKernelSleep(1);
-    }
-
-    camera.Init();
-
     if (use_dumped_frame) {
         dumped_frame_buf[0] = (void*)alloc_memory(1280 * 800 * 2, 0, ORBIS_KERNEL_WB_ONION,
                                                   MemoryProt::CpuReadWrite | MemoryProt::GpuRead);
@@ -88,21 +77,20 @@ void App::InitCamera() {
 
 void App::InitPadTracker() {
     LOG_INFO("Setting up pad tracker");
-    sceCameraGetExposureGain(camera.handle, 1, &camera.exposuregain, nullptr);
-    LOG_INFO("eg: {} {} {} {}", camera.exposuregain.exposureControl, camera.exposuregain.exposure,
-             camera.exposuregain.gain, camera.exposuregain.mode);
+    LOG_INFO("eg: {} {} {} {}", exposuregain.exposureControl, exposuregain.exposure,
+             exposuregain.gain, exposuregain.mode);
 
     pt_input.handles[0] = pad_handle;
     pt_input.handles[1] = -1;
     pt_input.handles[2] = -1;
     pt_input.handles[3] = -1;
 
-    pt_input.images[0].exposure = camera.exposuregain.exposure;
-    pt_input.images[0].gain = camera.exposuregain.gain;
+    pt_input.images[0].exposure = exposuregain.exposure;
+    pt_input.images[0].gain = exposuregain.gain;
     pt_input.images[0].width = 1280;
     pt_input.images[0].height = 800;
-    pt_input.images[1].exposure = camera.exposuregain.exposure;
-    pt_input.images[1].gain = camera.exposuregain.gain;
+    pt_input.images[1].exposure = exposuregain.exposure;
+    pt_input.images[1].gain = exposuregain.gain;
     pt_input.images[1].width = 1280;
     pt_input.images[1].height = 800;
 
@@ -123,14 +111,6 @@ void App::InitPadTracker() {
 static int dump_next_camera_frame_id = -1;
 
 bool App::UpdateCamera() {
-    camera.Update();
-    if (dump_next_camera_frame_id >= 0) {
-        LOG_NOTIFICATION("Dumping frame {}...", dump_next_camera_frame_id);
-        std::ofstream os(dump_path[dump_next_camera_frame_id], std::ios::binary | std::ios::out);
-        os.write(reinterpret_cast<char const*>(camera.frame.frame_ptr_list[0][0]),
-                 camera.frame.frame_size[0][0]);
-        dump_next_camera_frame_id = -1;
-    }
     return true;
 }
 
@@ -140,9 +120,6 @@ void App::UpdatePadTracker() {
             state.pt_status[0] == Status::Calibrating ? dumped_frame_buf[0] : dumped_frame_buf[1];
         pt_input.images[0].data = fb;
         pt_input.images[1].data = fb;
-    } else {
-        pt_input.images[0].data = camera.frame.frame_ptr_list[0][0];
-        pt_input.images[1].data = camera.frame.frame_ptr_list[1][0];
     }
 
     ASSERT_OK(scePadTrackerUpdate(pt_input));
@@ -216,7 +193,7 @@ void App::DrawCameraImage() {
         if (!output.pixels) {
             ASSERT(output.Allocate(1280, 800));
         }
-        camera.ConvertRAW16(dumped_frame_buf[state.pt_status[0] == Status::Calibrating ? 0 : 1],
+        Camera::ConvertRAW16(dumped_frame_buf[state.pt_status[0] == Status::Calibrating ? 0 : 1],
                             1280, 800, output);
         renderer.DrawImage(output, 0, 0);
         return;

@@ -73,7 +73,12 @@ public:
     Renderer renderer{};
     AppState state{};
     FT_Face font{};
-    Camera camera{};
+    OrbisCameraExposureGain exposuregain{
+        .exposureControl = 0,
+        .exposure = 83,
+        .gain = 100,
+        .mode = 0,
+    };
 
     OrbisPadTrackerInput pad_input{};
     OrbisPadTrackerData pad_output{};
