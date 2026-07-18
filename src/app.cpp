@@ -201,15 +201,16 @@ void App::DrawCameraImage() {
 }
 
 void App::DrawPadTrackerResult() {
-    if (state.pt_status[state.eye] == Status::Tracking) {
-        renderer.scene->DrawRectangle((pt_output.imageCoordinates[state.eye].x * 1280) - 0,
-                                      (pt_output.imageCoordinates[state.eye].y * 800) - 0, 10, 10,
-                                      {255, 0, 0});
-    }
+
     if (state.pt_status[1 - state.eye] == Status::Tracking) {
-        renderer.scene->DrawRectangle((pt_output.imageCoordinates[1 - state.eye].x * 1280) - 0,
-                                      (pt_output.imageCoordinates[1 - state.eye].y * 800) - 0, 10,
-                                      10, {0, 255, 0});
+        renderer.scene->DrawRectangle((pt_output.imageCoordinates[1 - state.eye].x * 1280) - 10,
+                                      (pt_output.imageCoordinates[1 - state.eye].y * 800) - 10, 20,
+                                      20, {0, 255, 0});
+    }
+    if (state.pt_status[state.eye] == Status::Tracking) {
+        renderer.scene->DrawRectangle((pt_output.imageCoordinates[state.eye].x * 1280) - 10,
+                                      (pt_output.imageCoordinates[state.eye].y * 800) - 10, 20, 20,
+                                      {255, 0, 0});
     }
     if (state.pt_status[state.eye] == Status::Calibrating) {
         DrawLoadingFrame();
