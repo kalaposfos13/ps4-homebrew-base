@@ -3,7 +3,8 @@
 #include <filesystem>
 #include <fstream>
 
-const char* dump_path[2] = {"/app0/assets/images/frame_dump1.bin", "/app0/assets/images/frame_dump2.bin"};
+const char* dump_path[2] = {"/app0/assets/images/frame_dump1.bin",
+                            "/app0/assets/images/frame_dump2.bin"};
 
 enum MemoryProt : u32 {
     NoAccess = 0,
@@ -194,7 +195,7 @@ void App::DrawCameraImage() {
             ASSERT(output.Allocate(1280, 800));
         }
         Camera::ConvertRAW16(dumped_frame_buf[state.pt_status[0] == Status::Calibrating ? 0 : 1],
-                            1280, 800, output);
+                             1280, 800, output);
         renderer.DrawImage(output, 0, 0);
         return;
     }
@@ -238,8 +239,24 @@ void App::DrawMoveTrackerResult() {
 }
 
 void App::DrawDebugStuff() {
-    std::string debug_text = fmt::format("tracker status: {}", u32(pt_output.imageCoordinates[0].status));
-    renderer.scene->DrawText(debug_text.c_str(), font, 1500, 850, {0, 0, 0}, {255, 0, 255});
+    std::string status_str = "unknown";
+    switch (pt_output.imageCoordinates[0].status) {
+    case OrbisPadTrackerStatus::ORBIS_PAD_TRACKER_TRACKING:
+        status_str = "tracking";
+        break;
+    case OrbisPadTrackerStatus::ORBIS_PAD_TRACKER_NOT_TRACKING:
+        status_str = "not tracking";
+        break;
+    case OrbisPadTrackerStatus::ORBIS_PAD_TRACKER_ROOM_CONFLICT:
+        status_str = "room conflict";
+        break;
+    case OrbisPadTrackerStatus::ORBIS_PAD_TRACKER_CALIBRATING:
+        status_str = "calibrating";
+        break;
+    }
+    std::string debug_text =
+        fmt::format("tracker status: {}", status_str);
+    renderer.scene->DrawText(debug_text.c_str(), font, 1300, 850, {0, 0, 0}, {255, 0, 255});
 }
 
 void App::DrawLoadingFrame() {
