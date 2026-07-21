@@ -6,9 +6,9 @@ project(MICE LANGUAGES C CXX)
 # USER CONFIG
 # =========================================================
 
-set(APP_TITLE "padtracker unit test")
+set(APP_TITLE "camera test")
 set(APP_VERSION "0.01")
-set(APP_TITLE_ID "KALA00020")
+set(APP_TITLE_ID "KALA00014")
 set(SDK_VERSION 0x02000001)
 
 set(LIBS

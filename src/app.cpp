@@ -123,7 +123,7 @@ void App::InitPadTracker() {
 static int dump_next_camera_frame_id = -1;
 
 bool App::UpdateCamera() {
-    camera.Update();
+    bool ret = camera.Update();
     if (dump_next_camera_frame_id >= 0) {
         LOG_NOTIFICATION("Dumping frame {}...", dump_next_camera_frame_id);
         std::ofstream os(dump_path[dump_next_camera_frame_id], std::ios::binary | std::ios::out);
@@ -131,7 +131,7 @@ bool App::UpdateCamera() {
                  camera.frame.frame_size[0][0]);
         dump_next_camera_frame_id = -1;
     }
-    return true;
+    return ret;
 }
 
 void App::UpdatePadTracker() {
@@ -211,16 +211,17 @@ void App::FrameEnd() {
 }
 
 void App::DrawCameraImage() {
+    static Image output{};
     if (use_dumped_frame) {
-        static Image output{};
         if (!output.pixels) {
             ASSERT(output.Allocate(1280, 800));
         }
         camera.ConvertRAW16(dumped_frame_buf[state.pt_status[0] == Status::Calibrating ? 0 : 1],
                             1280, 800, output);
-        renderer.DrawImage(output, 0, 0);
-        return;
+    } else {
+        camera.RenderEyeToImage(0, 1280, 800, output);
     }
+    renderer.DrawImage(output, 0, 0);
 }
 
 void App::DrawPadTrackerResult() {
@@ -235,7 +236,7 @@ void App::DrawPadTrackerResult() {
                                       10, {0, 255, 0});
     }
     if (state.pt_status[state.eye] == Status::Calibrating) {
-        DrawLoadingFrame();
+        // DrawLoadingFrame();
     }
 }
 
@@ -260,8 +261,9 @@ void App::DrawMoveTrackerResult() {
 }
 
 void App::DrawDebugStuff() {
-    std::string debug_text = fmt::format("tracker status: {}", u32(pt_output.imageCoordinates[0].status));
-    renderer.scene->DrawText(debug_text.c_str(), font, 1500, 850, {0, 0, 0}, {255, 0, 255});
+    std::string debug_text =
+        fmt::format("tracker status: {}", u32(pt_output.imageCoordinates[0].status));
+    renderer.scene->DrawText(debug_text.c_str(), font, 1500, 800, {0, 0, 0}, {255, 0, 255});
 }
 
 void App::DrawLoadingFrame() {

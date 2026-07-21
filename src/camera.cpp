@@ -22,7 +22,7 @@ bool Camera::Init() {
 
     OrbisCameraConfig cconfig{};
     cconfig.size_this = sizeof(OrbisCameraConfig);
-    cconfig.config_type = ORBIS_CAMERA_CONFIG_TYPE2;
+    cconfig.config_type = ORBIS_CAMERA_CONFIG_TYPE4;
     ASSERT_OK(sceCameraSetConfig(handle, &cconfig));
 
     OrbisCameraStartParameter cstart_param{};
