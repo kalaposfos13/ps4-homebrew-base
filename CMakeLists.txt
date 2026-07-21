@@ -6,16 +6,16 @@ project(MICE LANGUAGES C CXX)
 # USER CONFIG
 # =========================================================
 
-set(APP_TITLE "example homebrew project")
+set(APP_TITLE "Eternal Linux")
 set(APP_VERSION "0.01")
-set(APP_TITLE_ID "KALA00001")
+set(APP_TITLE_ID "KALA00022")
 set(SDK_VERSION 0x02000001)
 
 set(LIBS
     c c++ kernel
     SceSysUtil SceSystemService SceUserService ScePad
     SceVideoOut SceGnmDriver SceSysmodule SceFreeType
-    SceCamera
+    SceCamera SceKeyboard
 )
 
 # =========================================================

@@ -232,7 +232,29 @@ void Scene2D::DrawPixel(int const x, int const y, Color const color) {
     ((uint32_t*)this->frameBuffers[this->activeFrameBufferIdx])[pixel] = encodedColor;
 }
 
+void Scene2D::DrawPixel(int const x, int const y, int const color) {
+    if (x < 0 || y < 0 || x > width || y > height) {
+        return;
+    }
+    int pixel = (y * this->width) + x;
+    ((uint32_t*)this->frameBuffers[this->activeFrameBufferIdx])[pixel] = color;
+}
+
 void Scene2D::DrawRectangle(int const x, int const y, int const w, int const h, Color const color) {
+    int xPos, yPos;
+    if (x < 0 || y < 0 || x + w > width || y + h > height) {
+        return;
+    }
+
+    // Draw row-by-row, column-by-column
+    for (yPos = y; yPos < y + h; yPos++) {
+        for (xPos = x; xPos < x + w; xPos++) {
+            DrawPixel(xPos, yPos, color);
+        }
+    }
+}
+
+void Scene2D::DrawRectangle(int const x, int const y, int const w, int const h, int const color) {
     int xPos, yPos;
     if (x < 0 || y < 0 || x + w > width || y + h > height) {
         return;

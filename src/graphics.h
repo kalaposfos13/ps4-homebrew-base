@@ -62,7 +62,9 @@ public:
     void FrameBufferFill(Color color);
 
     void DrawPixel(int const x, int const y, Color const color);
+    void DrawPixel(int const x, int const y, int const color);
     void DrawRectangle(int const x, int const y, int const w, int const h, Color const color);
+    void DrawRectangle(int const x, int const y, int const w, int const h, int const color);
     void DrawRectangleWithBorder(int const x, int const y, int const w, int const h,
                                  Color const color, int const b_w, Color const b_color);
     void DrawLine(int const p1x, int const p1y, int const dx, int const dy, int const w,

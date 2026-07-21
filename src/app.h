@@ -28,6 +28,7 @@ public:
 
     s32 user_id{};
     Pad pad{};
+    s32 kb_handle{};
 
     Renderer renderer{};
 };

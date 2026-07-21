@@ -18,7 +18,7 @@ void Renderer::Init() {
         ASSERT_OK(scene->InitFontLib());
         std::string font_path =
             fmt::format("/{}/common/font/DFHEI5-SONY.ttf", sceKernelGetFsSandboxRandomWord());
-        ASSERT_MSG(scene->InitFont(&font, font_path.c_str(), 80) && font != nullptr,
+        ASSERT_MSG(scene->InitFont(&font, font_path.c_str(), 40) && font != nullptr,
                    "Failed to init font");
     }
 }
