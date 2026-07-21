@@ -14,7 +14,7 @@ void Renderer::Init() {
         scene = new Scene2D(1920, 1080, 4);
         ASSERT_MSG(scene->Init(0xC000000, 2), "Failed to initialize 2D scene");
     }
-    if (use_font && scene->ftLib) {
+    if (!scene->ftLib) {
         ASSERT_OK(scene->InitFontLib());
         std::string font_path =
             fmt::format("/{}/common/font/DFHEI5-SONY.ttf", sceKernelGetFsSandboxRandomWord());

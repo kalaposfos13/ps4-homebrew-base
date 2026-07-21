@@ -17,7 +17,6 @@ public:
 
     Scene2D* GetScene() { return scene; }
 
-    bool use_font = true;
     Scene2D* scene{};
     FT_Face font{};
 };

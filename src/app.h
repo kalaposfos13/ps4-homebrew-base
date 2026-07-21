@@ -1,12 +1,12 @@
 #pragma once
 
 #include "assert.h"
+#include "camera.h"
 #include "graphics.h"
 #include "logging.h"
+#include "pad.h"
 #include "types.h"
-#include "camera.h"
 
-#include <orbis/Pad.h>
 #include <orbis/Sysmodule.h>
 #include <orbis/SystemService.h>
 #include <orbis/UserService.h>
@@ -15,31 +15,19 @@
 #include <cstdlib>
 #include "renderer.h"
 
-struct AppState {
-    s32 eye = 0;
-};
-
 class App {
 public:
     App();
     ~App();
 
     void Run();
-    void DrawCameraImage();
-    void DrawPlaceholderCameraImage();
 
     void DrawDemo();
 
-    bool HandleControllerInput();
-
-    bool use_font = false;
+    bool HandleInput();
 
     s32 user_id{};
-    s32 pad_handle{};
+    Pad pad{};
 
-    OrbisPadData pdata{};
-
-    Camera camera{};
     Renderer renderer{};
-    AppState state{};
 };
