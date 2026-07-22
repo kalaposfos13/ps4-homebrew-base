@@ -1,14 +1,49 @@
 #include "app.h"
 
 #include <map>
+#include <thread>
 #include <utility>
+#include <fcntl.h>
+
+extern "C" {
+// s32 PS4_SYSV_ABI open(const char* filename, s32 flags, u16 mode);
+s64 PS4_SYSV_ABI read(s32 fd, void* buf, u64 nbytes);
+s32 PS4_SYSV_ABI close(s32 fd);
+}
 
 void App::Run() {
-    while (HandleInput()) {
-        renderer.BeginFrame();
-        DrawDemo();
-        renderer.EndFrame();
+    u64 const fsize = 1048576000ull;
+    VAddr dmem = 0;
+    bool started = false;
+
+    char* filebuf =
+        (char*)alloc_memory(fsize, 16_KB, ORBIS_KERNEL_WC_GARLIC, MemoryProt::CpuReadWrite, dmem);
+    std::thread protector{[&]() {
+        constexpr u64 protect_size = 16_KB;
+        LOG_INFO("starting protect spam");
+        started = true;
+        for (int i = 0; i < fsize; i += protect_size) {
+            ASSERT_OK(sceKernelMprotect(filebuf + i, protect_size,
+                                        MemoryProt::CpuReadWrite | MemoryProt::GpuRead));
+            if (i / 16_KB % 100 == 0) {
+                sceKernelUsleep(5);
+            }
+        }
+        LOG_INFO("finished protect spam");
+    }};
+    while (!started) {
     }
+    sceKernelUsleep(50);
+    s32 fh = open("/app0/testfile", 0, 0666);
+    read(fh, filebuf, fsize);
+    close(fh);
+    protector.join();
+    for (int i = 0; i < fsize - 3; i += 3) {
+        if (!(filebuf[i] == 'A' && filebuf[i + 1] == 'a' && filebuf[i + 2] == '\n')) {
+            UNREACHABLE_MSG("deviation at {}", i);
+        }
+    }
+    LOG_INFO("test passed");
 }
 
 App::App() {
